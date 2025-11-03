@@ -1,0 +1,106 @@
+/* Sandoll 웹폰트 */
+@import url('https://bks0c7yrb0.execute-api.ap-northeast-2.amazonaws.com/v1/api/css/drop_fontstream_css/?sid=gAAAAABkPXHo4qvpc1sn4CfuJL52Upc7AT8TVi8zpqX6aZtd3bQar6UDsPKea-00OVjtEVNfrYxuRy0KwyP7evvOGmFn-UJE3J2fgwZrrKxTO78AFSLAqGsk2yWcjZ17eIWeK8W_hEM0WwmzRDJ8PY0OKk9vf2d1gDahwuKJRCRKWS-LyUCxQDP7meUclfmM9WUoaP-N0gjIL5lyx-sFjuMGMGstTkeslXuA25WmkTdqzwQN4zkCffosmIAvef50EDHxTj2cl6OL');
+
+:root {
+    --bg-color: #f7f7f7;
+    --font-main: 'Sandoll SuPil', sans-serif;
+    --font-sub: 'Sandoll Gwanghwamun', serif;
+    --font-serif: var(--font-main);
+
+    /* 로고 크기 조절을 위한 변수 */
+    --logo-width: 40vw;
+    --logo-max-width: 1000px;
+
+    /* 화살표 크기 조절을 위한 변수 */
+    --arrow-width: 50vw;
+    --arrow-max-width: 1300px;
+}
+
+body {
+    font-family: var(--font-serif);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100vh;
+}
+
+.container {
+    background: url('asset/Landing.png') no-repeat center center/cover;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+/* 좌측 상단 이미지 */
+.landing-factor-image {
+    position: absolute;
+    top: 2rem;
+    left: 2rem;
+    width: 23%;
+    height: auto;
+}
+
+/* 로고 컨테이너: 화면 중앙에 배치 */
+.landing-logo-container {
+    position: absolute;
+    top: 60%;
+    left: 65%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    animation: fadeIn 1.5s forwards;
+    animation-delay: 0.5s;
+}
+
+/* 화살표 컨테이너: 로고 아래에 배치 */
+.landing-next-button {
+    display: block;
+    cursor: pointer;
+    position: absolute;
+    top: calc(60% + 30vh); /* 로고 위치에서 아래로 15vh만큼 이동 */
+    left: 65%;
+    transform: translateX(-50%);
+    opacity: 0;
+    animation: fadeIn 1.5s forwards;
+    animation-delay: 0.8s;
+}
+
+@keyframes fadeIn {
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+/* 로고와 화살표에 개별적인 크기 및 호버 효과 적용 */
+.landing-logo {
+    width: min(var(--logo-width), var(--logo-max-width));
+    height: auto;
+}
+
+.landing-next-arrow {
+    width: var(--arrow-width);
+    height: auto;
+    transition: transform 0.3s ease-in-out;
+}
+
+.landing-next-arrow:hover {
+    transform: scale(1.1); /* 호버 시 약간 확대 */
+}
+
+/* 모바일 화면을 위한 반응형 디자인 */
+@media (max-width: 768px) {
+    :root {
+        --logo-width: 40vw;
+        --arrow-width: 80px;
+    }
+
+    .landing-factor-image {
+        top: 1rem;
+        left: 1rem;
+        width: 80px;
+    }
+    
+    .landing-next-button {
+        top: calc(50% + 10vh); /* 모바일에서는 간격 조절 */
+    }
+}
