@@ -17,9 +17,333 @@
     </div>
 
     <a href="radial.html" class="landing-next-button">
-        <img src="asset/landingnext.svg" alt="다음 페이지로 이동" class="landing-next-arrow">
+        <div class="arrow-wrapper">
+            <span class="button-bg"></span>
+            <svg class="landing-next-arrow" width="1057" height="78" viewBox="0 0 1057 78" fill="none" xmlns="http://www.w3.org/2000/svg" style="transform: translateX(-10px) !important; display: block;">
+                <g class="dashed-line-container" opacity="0.7" filter="url(#filter0_f_797_4219)">
+                    <line id="dashed-line" x1="2" y1="69.978" x2="730" y2="69.978" stroke="#D9FFF0" stroke-width="2" stroke-dasharray="10 10"/>
+                </g>
+                <g class="arrow-main" opacity="0.7" style="transform: scaleX(0.75); transform-origin: left center;">
+                    <path d="M974 66H970V74H974V70V66ZM1006.7 5.6C1005.37 3.83269 1002.87 3.47452 1001.1 4.8C999.333 6.12548 998.975 8.63269 1000.3 10.4L1003.5 8L1006.7 5.6ZM1047.6 66.8L1044.4 69.2L1047.6 66.8ZM974 70V74H1046V70V66H974V70ZM1047.6 66.8L1050.8 64.4L1006.7 5.6L1003.5 8L1000.3 10.4L1044.4 69.2L1047.6 66.8ZM1046 70V74C1050.94 74 1053.77 68.3554 1050.8 64.4L1047.6 66.8L1044.4 69.2C1043.41 67.8815 1044.35 66 1046 66V70Z" fill="#D9FFF0"/>
+                </g>
+                <defs>
+                    <filter id="filter0_f_797_4219" x="0" y="67.0244" width="972" height="6.95361" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                        <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                        <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+                        <feGaussianBlur stdDeviation="1" result="effect1_foregroundBlur_797_4219"/>
+                    </filter>
+                    <filter id="filter1_f_797_4219" x="966" y="0" width="90.011" height="78" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                        <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                        <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+                        <feGaussianBlur stdDeviation="2" result="effect1_foregroundBlur_797_4219"/>
+                    </filter>
+                </defs>
+            </svg>
+        </div>
     </a>
 </div>
 
+<script>
+window.addEventListener('load', function() {
+    const button = document.querySelector('.landing-next-button');
+    const svgElement = document.querySelector('.landing-next-arrow');
+    
+    if (!button || !svgElement) {
+        console.error('요소를 찾을 수 없습니다!');
+        return;
+    }
+    
+    // 점선을 개별 세그먼트로 분할
+    const dashedLine = svgElement.querySelector('#dashed-line');
+    if (dashedLine) {
+        const x1 = parseFloat(dashedLine.getAttribute('x1')) || 2;
+        const x2 = parseFloat(dashedLine.getAttribute('x2')) || 730; // 화살표 시작점에 맞춤 (974 * 0.75 ≈ 730)
+        const y = parseFloat(dashedLine.getAttribute('y1')) || 69.978;
+        const stroke = dashedLine.getAttribute('stroke') || '#D9FFF0';
+        const strokeWidth = dashedLine.getAttribute('stroke-width') || '2';
+        const transform = dashedLine.getAttribute('transform') || '';
+        
+        // 부모 컨테이너
+        const dashContainer = dashedLine.closest('.dashed-line-container');
+        
+        // 기존 line 제거
+        dashedLine.remove();
+        
+        // 점선 세그먼트 생성 (각 10px 간격으로)
+        const segmentLength = 10;
+        const gapLength = 10;
+        const segmentCount = Math.floor((x2 - x1) / (segmentLength + gapLength));
+        
+        for (let i = 0; i < segmentCount; i++) {
+            const segmentX1 = x1 + i * (segmentLength + gapLength);
+            const segmentX2 = segmentX1 + segmentLength;
+            
+            const segmentG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            segmentG.setAttribute('class', 'dash-segment');
+            
+            const segmentLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            segmentLine.setAttribute('x1', segmentX1);
+            segmentLine.setAttribute('x2', segmentX2);
+            segmentLine.setAttribute('y1', y);
+            segmentLine.setAttribute('y2', y);
+            segmentLine.setAttribute('stroke', stroke);
+            segmentLine.setAttribute('stroke-width', strokeWidth);
+            
+            // 원래 y 좌표 저장
+            segmentG.setAttribute('data-original-y', y);
+            segmentG.appendChild(segmentLine);
+            dashContainer.appendChild(segmentG);
+        }
+    }
+    
+    // SVG 요소 찾기
+    const dashSegments = svgElement.querySelectorAll('.dash-segment');
+    const arrowMain = svgElement.querySelector('.arrow-main');
+    
+    console.log('점선 개수:', dashSegments.length);
+    
+    if (!dashSegments.length) {
+        console.error('점선 세그먼트를 찾을 수 없습니다');
+        return;
+    }
+    
+    // SVG 위치 초기 고정 확인
+    if (svgElement) {
+        const currentTransform = svgElement.style.transform || '';
+        if (!currentTransform.includes('translateX(-10px)')) {
+            svgElement.style.setProperty('transform', 'translateX(-10px)', 'important');
+        }
+    }
+    
+    let timers = [];
+    let pulseAnimationId = null;
+    
+    button.addEventListener('mouseenter', function() {
+        // SVG 위치 고정 확인 및 강제 설정
+        if (svgElement) {
+            svgElement.style.setProperty('transform', 'translateX(-10px)', 'important');
+        }
+        
+        // arrow-wrapper 위치 강제 고정
+        const arrowWrapper = button.querySelector('.arrow-wrapper');
+        if (arrowWrapper) {
+            arrowWrapper.style.setProperty('transform', 'translateX(80px)', 'important');
+            // transition도 제거하여 애니메이션 방지
+            arrowWrapper.style.setProperty('transition', 'none', 'important');
+        }
+        
+        // 기존 타이머 및 애니메이션 클리어
+        timers.forEach(t => clearTimeout(t));
+        timers = [];
+        if (pulseAnimationId !== null) {
+            cancelAnimationFrame(pulseAnimationId);
+            pulseAnimationId = null;
+        }
+        
+        // 각 점선을 순차적으로 애니메이션 (더 빠른 간격으로)
+        dashSegments.forEach(function(segment, index) {
+            const delay = index * 10; // 15ms → 10ms로 더 빠른 파도 효과
+            
+            const t1 = setTimeout(function() {
+                const startTime = Date.now();
+                const duration = 200; // 더 빠르고 작게
+                const maxY = 8; // 더 작게 튀어오르기 (15px → 8px)
+                
+                function animate() {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    // easeOut cubic - 위로 튀어오르는 느낌 (더 부드럽게)
+                    const easeOut = 1 - Math.pow(1 - progress, 3);
+                    
+                    // CSS transform을 사용하여 위로 올라가게 함
+                    const translateY = -maxY * easeOut; // 위로 올라가려면 음수 값
+                    segment.style.transform = 'translateY(' + translateY + 'px)';
+                    
+                    // opacity는 거의 유지 (튀어오르는 느낌만, 더 작게)
+                    segment.style.opacity = (0.7 + 0.1 * easeOut).toFixed(2);
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        // 내려오기 (더 빠르게)
+                        const fallStart = Date.now();
+                        const fallDuration = 100;
+                        function fallAnimate() {
+                            const fallElapsed = Date.now() - fallStart;
+                            const fallProgress = Math.min(fallElapsed / fallDuration, 1);
+                            // bounce 느낌을 위한 easeOut
+                            const fallEaseOut = 1 - Math.pow(1 - fallProgress, 2);
+                            
+                            const translateY = -maxY * (1 - fallEaseOut);
+                            segment.style.transform = 'translateY(' + translateY + 'px)';
+                            
+                            segment.style.opacity = (0.8 - 0.1 * fallEaseOut).toFixed(2);
+                            
+                            if (fallProgress < 1) {
+                                requestAnimationFrame(fallAnimate);
+                            } else {
+                                // 원래 위치로 복원
+                                segment.style.transform = '';
+                                segment.style.opacity = '0.7';
+                            }
+                        }
+                        requestAnimationFrame(fallAnimate);
+                    }
+                }
+                requestAnimationFrame(animate);
+            }, delay);
+            timers.push(t1);
+        });
+        
+        // 화살표 bounce 애니메이션 (호버 시에만) - 원 확장과 동시에 시작
+        const arrowDelay = dashSegments.length * 10; // 딜레이 더 줄임
+        
+        setTimeout(function() {
+            if (arrowMain) {
+                // 초기 scaleX 값만 사용 (위치는 SVG 인라인 스타일로 고정되어 있으므로 변경하지 않음)
+                let baseScaleX = 0.75;
+                
+                // 인라인 스타일에서 scaleX 추출 (있으면)
+                const inlineTransform = arrowMain.style.transform || '';
+                if (inlineTransform.includes('scaleX')) {
+                    const match = inlineTransform.match(/scaleX\(([^)]+)\)/);
+                    if (match) {
+                        baseScaleX = parseFloat(match[1]);
+                    }
+                }
+                
+                arrowMain.style.transition = '';
+                arrowMain.style.opacity = '0.9';
+                arrowMain.style.transformOrigin = 'left center'; // 왼쪽 중심으로 축소하여 점선 끝과 맞춤
+                // scaleX만 설정 - 위치(translateX)는 절대 변경하지 않음
+                // SVG 위치는 절대 건드리지 않음 - SVG 자체의 transform만 유지
+                arrowMain.style.transform = 'scaleX(' + baseScaleX + ')';
+                
+                // SVG와 arrow-wrapper 위치 강제 고정 (transition 제거)
+                if (svgElement) {
+                    svgElement.style.setProperty('transform', 'translateX(-10px)', 'important');
+                    svgElement.style.setProperty('transition', 'none', 'important');
+                }
+                const arrowWrapper = button.querySelector('.arrow-wrapper');
+                if (arrowWrapper) {
+                    arrowWrapper.style.setProperty('transform', 'translateX(80px)', 'important');
+                    arrowWrapper.style.setProperty('transition', 'none', 'important');
+                }
+                
+                const arrowStart = Date.now();
+                const arrowDuration = 600; // 전체 애니메이션 시간 (더 느리게)
+                
+                function arrowBounce() {
+                    const elapsed = Date.now() - arrowStart;
+                    const progress = Math.min(elapsed / arrowDuration, 1);
+                    
+                    let scaleX, scaleY;
+                    
+                    // 반동을 훨씬 은은하게 (0.96 ~ 1.04)
+                    if (progress < 0.25) {
+                        // 0-25%: scale(0.96, 1.04)
+                        const t = progress / 0.25;
+                        scaleX = 0.96 + (1.04 - 0.96) * t;
+                        scaleY = 1.04 - (1.04 - 0.96) * t;
+                    } else if (progress < 0.5) {
+                        // 25-50%: scale(1.04, 0.96)
+                        const t = (progress - 0.25) / 0.25;
+                        scaleX = 1.04 - (1.04 - 0.96) * t;
+                        scaleY = 0.96 + (1.04 - 0.96) * t;
+                    } else if (progress < 0.75) {
+                        // 50-75%: scale(0.96, 1.04)
+                        const t = (progress - 0.5) / 0.25;
+                        scaleX = 0.96 + (1.04 - 0.96) * t;
+                        scaleY = 1.04 - (1.04 - 0.96) * t;
+                    } else {
+                        // 75-100%: scale(1, 1)
+                        const t = (progress - 0.75) / 0.25;
+                        const easeOut = 1 - Math.pow(1 - t, 3);
+                        scaleX = 1.04 - (1.04 - 1) * easeOut;
+                        scaleY = 0.96 + (1 - 0.96) * easeOut;
+                    }
+                    
+                    // 초기 scaleX 값에 bounce 효과 적용 - 위치는 변경하지 않음
+                    // transform-origin은 left center로 유지하여 왼쪽 기준으로 축소/확대
+                    arrowMain.style.transformOrigin = 'left center';
+                    arrowMain.style.transform = 'scaleX(' + (baseScaleX * scaleX) + ') scaleY(' + scaleY + ')';
+                    
+                    // opacity만 조절 (글로우 제거, 더 은은하게)
+                    arrowMain.style.opacity = (0.7 + 0.1 * (1 - progress)).toFixed(2);
+                    
+                    // 매 프레임마다 SVG와 wrapper 위치 강제 고정 (절대 변경 안됨)
+                    if (svgElement) {
+                        svgElement.style.setProperty('transform', 'translateX(-10px)', 'important');
+                        svgElement.style.setProperty('transition', 'none', 'important');
+                    }
+                    const arrowWrapper = button.querySelector('.arrow-wrapper');
+                    if (arrowWrapper) {
+                        arrowWrapper.style.setProperty('transform', 'translateX(80px)', 'important');
+                        arrowWrapper.style.setProperty('transition', 'none', 'important');
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(arrowBounce);
+                    } else {
+                        // 애니메이션 완료 후 초기 상태로 복원
+                        arrowMain.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+                        arrowMain.style.transformOrigin = 'left center'; // 왼쪽 중심 유지
+                        arrowMain.style.transform = 'scaleX(' + baseScaleX + ')'; // 초기 scaleX로 복원
+                        arrowMain.style.opacity = '0.8';
+                        
+                        // 위치 최종 고정 (transition 제거하여 애니메이션 방지)
+                        if (svgElement) {
+                            svgElement.style.setProperty('transform', 'translateX(-10px)', 'important');
+                            svgElement.style.setProperty('transition', 'none', 'important');
+                        }
+                        const arrowWrapper = button.querySelector('.arrow-wrapper');
+                        if (arrowWrapper) {
+                            arrowWrapper.style.setProperty('transform', 'translateX(80px)', 'important');
+                            arrowWrapper.style.setProperty('transition', 'none', 'important');
+                        }
+                    }
+                }
+                requestAnimationFrame(arrowBounce);
+            }
+        }, arrowDelay);
+    });
+    
+    button.addEventListener('mouseleave', function() {
+        timers.forEach(function(t) { clearTimeout(t); });
+        timers = [];
+        
+        // 펄스 애니메이션 중지
+        if (pulseAnimationId !== null) {
+            cancelAnimationFrame(pulseAnimationId);
+            pulseAnimationId = null;
+        }
+        
+        dashSegments.forEach(function(segment) {
+            segment.style.transform = '';
+            segment.style.opacity = '0.7';
+        });
+        
+        // 위치 강제 고정 및 transition 제거
+        if (svgElement) {
+            svgElement.style.setProperty('transform', 'translateX(-10px)', 'important');
+            svgElement.style.setProperty('transition', 'none', 'important');
+        }
+        
+        const arrowWrapper = button.querySelector('.arrow-wrapper');
+        if (arrowWrapper) {
+            arrowWrapper.style.setProperty('transform', 'translateX(80px)', 'important');
+            arrowWrapper.style.setProperty('transition', 'none', 'important');
+        }
+        
+        if (arrowMain) {
+            arrowMain.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+            arrowMain.style.transformOrigin = 'left center'; // 왼쪽 중심 유지
+            // scaleX만 복원 - 위치(translateX)는 절대 변경하지 않음
+            arrowMain.style.transform = 'scaleX(0.75)';
+            arrowMain.style.opacity = '0.7';
+        }
+    });
+});
+</script>
 </body>
 </html>
