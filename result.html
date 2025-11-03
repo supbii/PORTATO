@@ -1,0 +1,3997 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PORTATO 커스텀 티켓</title>
+  <link rel="preconnect" href="https://bks0c7yrb0.execute-api.ap-northeast-2.amazonaws.com">
+  <!-- Sandoll 웹폰트 - <link> 태그로 직접 로드하여 GitHub Pages 호환성 향상 -->
+  <link rel="stylesheet" href="https://bks0c7yrb0.execute-api.ap-northeast-2.amazonaws.com/v1/api/css/drop_fontstream_css/?sid=gAAAAABkPXHo4qvpc1sn4CfuJL52Upc7AT8TVi8zpqX6aZtd3bQar6UDsPKea-00OVjtEVNfrYxuRy0KwyP7evvOGmFn-UJE3J2fgwZrrKxTO78AFSLAqGsk2yWcjZ17eIWeK8W_hEM0WwmzRDJ8PY0OKk9vf2d1gDahwuKJRCRKWS-LyUCxQDP7meUclfmM9WUoaP-N0gjIL5lyx-sFjuMGMGstTkeslXuA25WmkTdqzwQN4zkCffosmIAvef50EDHxTj2cl6OL">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* 최소한의 로컬 스타일 (프로젝트 전반 styles.css가 우선) */
+    :root { 
+      --ink:#ebfeb3; 
+      --bg:#3C6C71;
+      --font-main: 'Sandoll SuPil', sans-serif;
+      --font-sub: 'Sandoll Gwanghwamun', serif;
+    }
+    html,body{height:100%;margin:0;padding:0;font-family:var(--font-main);background:var(--bg);color:var(--ink);}
+    .bg{position:fixed; inset:0; background:url("result/background_drag.png") center/cover no-repeat fixed; z-index:0; pointer-events:none;}
+    /* bgStack compatibility (radial과 동일 구조 유지) */
+    #bgStack{position:fixed; inset:0; z-index:0; pointer-events:none;}
+    #bgStack #bgLayer{position:absolute; inset:0; background:url("result/background_drag.png") center/cover no-repeat fixed;}
+    #bgStack #screenOverlay{position:absolute; inset:0; background: rgba(0,0,0,0.25); mix-blend-mode:multiply; }
+
+    .ui-root{position:relative; z-index:10; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:0; box-sizing:border-box;}
+    header.site-header{position:absolute; top:0; left:0; z-index:20;}
+    .logo-container{position:fixed; top:3.5vh; left:3.5vw; width:clamp(4vw,7vw,9vw); height:auto; z-index:1400; pointer-events:none; user-select:none;}
+    .logo-base{display:block;width:100%;height:auto;pointer-events:none;user-select:none;position:relative;mix-blend-mode:multiply;}
+    main.app{flex:1; width:100%; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:1vw; padding:4vh 0 0 0; box-sizing:border-box; z-index:12;}
+
+    .title-box{background:rgba(60,108,113,0.3); border-radius:1.5vw; padding:1.5vw 2.5vw; margin-bottom:0; max-width:fit-content; text-align:center;}
+    h2.result-title{margin:0; font-size:clamp(2.5vw,4vmin,3.5vw); color:var(--ink); text-align:center; font-weight:700;}
+    p.result-sub{margin:0; color:rgba(235,254,179,0.9); text-align:center; line-height:1.6; font-size:clamp(1.2vw,2vmin,1.8vw);}
+    
+    /* 애니메이션 점들 */
+    .loading-dots span {
+      display: inline-block;
+      animation: dotPulse 1.5s infinite;
+      opacity: 0.3;
+    }
+    .loading-dots span:nth-child(1) {
+      animation-delay: 0s;
+    }
+    .loading-dots span:nth-child(2) {
+      animation-delay: 0.5s;
+    }
+    .loading-dots span:nth-child(3) {
+      animation-delay: 1s;
+    }
+    @keyframes dotPulse {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.3); }
+    }
+    
+
+    .ticket-wrap{position:relative; display:flex; align-items:center; justify-content:center; width:80vw; height:35vw; overflow:hidden;}
+    
+    /* 티켓 백그라운드를 컨테이너로 설정 - overflow 제어 */
+    .ticket-background{
+      position:absolute; 
+      inset:0; 
+      width:100%; 
+      height:100%; 
+      object-fit:contain; 
+      z-index:1; 
+      pointer-events:none;
+      /* 컨테이너 역할을 위한 추가 설정 */
+      border-radius: inherit;
+    }
+    
+    /* ============================================================
+       🎨 티켓 요소 배치 설정 - 여기서 쉽게 수정 가능!
+       티켓 백그라운드 안에만 배치되도록 값들을 조정하세요.
+       ============================================================ */
+    
+    /* 장소 이미지 (forest_img, lawn_img, valley_img, sea_img) */
+    .forest-image{
+      position:absolute; 
+      left:15%; 
+      bottom:5%; 
+      width:45%; 
+      height:auto; 
+      object-fit:cover; 
+      z-index:2; 
+      pointer-events:none;
+      /* 티켓 백그라운드 경계 보장: left(5%) + width(45%) + 여백(5%) = 55% < 100% ✅ */
+      /* 티켓 백그라운드 경계 보장: bottom(5%) + height(60%) + 여백(5%) = 70% < 100% ✅ */
+      max-width: calc(100% - 10%); /* 좌우 각 5% 여백 보장 */
+      max-height: calc(100% - 10%); /* 상하 각 5% 여백 보장 */
+    }
+    
+    /* 왼쪽 원형 장식 */
+    .left-circle{
+      position:absolute; 
+      left:15%; 
+      top:55%; 
+      transform:translateY(-50%); 
+      width:33%; 
+      height:auto; 
+      object-fit:contain; 
+      z-index:3; 
+      pointer-events:none;
+      /* 티켓 백그라운드 경계 보장: left(5%) + width(18%) + 여백(5%) = 28% < 100% ✅ */
+      max-width: calc(100% - 10%); /* 좌우 각 5% 여백 보장 */
+      transform-origin: center center; /* 회전 중심을 중앙으로 */
+      animation: rotateRight 8s linear infinite; /* 천천히 오른쪽 방향으로 무한 회전 */
+    }
+    
+    @keyframes rotateRight {
+      from {
+        transform: translateY(-50%) rotate(0deg);
+      }
+      to {
+        transform: translateY(-50%) rotate(360deg);
+      }
+    }
+    
+    /* 왼쪽 스와일 장식 */
+    .left-swirl{
+      position:absolute; 
+      left:14%; 
+      top:65%; 
+      transform:translateY(-50%); 
+      width:22%; 
+      height:auto; 
+      object-fit:contain; 
+      z-index:4; 
+      pointer-events:none;
+      /* 티켓 백그라운드 경계 보장: left(5%) + width(18%) + 여백(5%) = 28% < 100% ✅ */
+      max-width: calc(100% - 10%); /* 좌우 각 5% 여백 보장 */
+    }
+    
+    /* 오른쪽 원형 장식 */
+    .right-circle{
+      position:absolute; 
+      right:15%; 
+      top:55%; 
+      transform:translateY(-50%); 
+      width:33%; 
+      height:auto; 
+      object-fit:contain; 
+      z-index:5; 
+      pointer-events:none;
+      /* 티켓 백그라운드 경계 보장: right(5%) + width(18%) + 여백(5%) = 28% < 100% ✅ */
+      max-width: calc(100% - 10%); /* 좌우 각 5% 여백 보장 */
+    }
+    
+    /* 오른쪽 원형 아래 은은한 빛나는 원 (강조 효과) */
+    .right-circle-glow{
+      position:absolute; 
+      /* right:15%; top:55%; transform:translateY(-50%); - JavaScript에서 동적으로 설정 */
+      width:240px; /* 초기값 - JavaScript에서 동적으로 조정 */
+      height:240px; /* 초기값 - JavaScript에서 동적으로 조정 */
+      background: radial-gradient(circle, rgba(235, 254, 179, 0.7) 0%, rgba(235, 254, 179, 0.4) 30%, rgba(235, 254, 179, 0.15) 60%, transparent 100%);
+      border-radius:50%; 
+      z-index:4; /* 티켓 백그라운드(1), forest-image(2), left-circle(3), left-swirl(4)보다 높고, right_circle(5)보다 아래 */
+      pointer-events:none;
+      filter: blur(6px); /* 테두리 블러 효과 (8px → 6px로 줄임) */
+      opacity: 1 !important; /* 완전히 표시 - 강제 */
+      visibility: visible !important; /* 강제로 표시 */
+      display: block !important; /* 강제로 블록 표시 */
+      animation: glowPulse 2.5s ease-in-out infinite; /* 웅웅대는 느낌의 반복 애니메이션 (3s → 2.5s로 더 빠르게) */
+    }
+    
+    @keyframes glowPulse {
+      0%, 100% {
+        transform: scale(0.95); /* 작아지는 크기를 더 작게 (1 → 0.95) */
+      }
+      50% {
+        transform: scale(1.15); /* 더 크게 변화 */
+      }
+    }
+    
+    /* ============================================================
+       배치 수정 가이드:
+       - 장소 이미지: left, bottom, width, height 조정
+       - 원형/스와일: left/right, top, width 조정
+       - 모든 값은 % 단위로 티켓 백그라운드 기준
+       - 최대값 계산식: calc(100% - [좌우여백합])
+       ============================================================ */
+    
+    .ticket-content{position:absolute; inset:0; display:block; padding:0; pointer-events:none; z-index:15; overflow:hidden;}
+    .ticket-content img{object-fit:contain; pointer-events:none; display:block;}
+    .ticket-content .draggable-img{width: auto; height: auto;}
+
+    .ticket-footer{display:flex; gap:2vw; align-items:center; justify-content:flex-start; margin-top:1.5vh; margin-bottom:1vh; z-index:12; position:relative; padding-left:0; width:80vw; margin-left:auto; margin-right:auto;}
+    .ticket-footer img.btn-img{height:3.5vw !important; max-height:3.5vw !important; min-height:3.5vw !important; cursor:pointer; display:block; width:auto; object-fit:contain; vertical-align:middle;}
+    .ticket-footer img#btnReset{height:2.8vw !important; max-height:2.8vw !important; min-height:2.8vw !important; vertical-align:middle; margin-left:10vw;}
+    .ticket-footer .footer-buttons-right{display:flex; gap:2vw; align-items:center; margin-left:auto; margin-right:auto;}
+
+    .controls { display:flex; gap:1.2vw; align-items:center; justify-content:center; margin-top:1.2vw; z-index:12;}
+    .controls a, .controls button { background:transparent; border:0; color:var(--ink); cursor:pointer; font-size:clamp(0.8vw,1.4vmin,1.2vw); padding:0.45vw 0.8vw; border-radius:0.8vw; }
+
+    footer.site-footer{position:fixed; bottom:2vh; left:50%; transform:translateX(-50%); font-size:1vw; opacity:.9; z-index:21; margin:0; color:var(--ink); text-align:center; font-family:var(--font-sub);}
+
+    /* small screens */
+    @media (max-width:600px){
+      .ticket-wrap{width:90vw; height:40vw; overflow:hidden;}
+      .ticket-background{width:100%; height:100%;}
+      /* 모바일에서도 데스크톱과 동일한 배치 (비율 유지) */
+      .forest-image{width:45%; height:60%; left:5%; bottom:5%; max-width:calc(100% - 10%); max-height:calc(100% - 10%);}
+      .left-circle, .left-swirl{width:18%; height:auto; left:5%; max-width:calc(100% - 10%);}
+      .right-circle{width:18%; height:auto; right:5%; max-width:calc(100% - 10%);}
+      /* 모바일에서도 티켓 백그라운드 안에만 배치 */
+      /* .right-circle-glow는 JavaScript에서 동적으로 크기 설정 */
+    }
+
+    /* 로딩 화면 스타일 */
+    #loadingOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.92);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3vw;
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+
+    #loadingOverlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-pose-container {
+      width: 10vw;
+      height: 10vw;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .loading-pose {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .loading-pose.active {
+      opacity: 1;
+    }
+
+    .loading-progress-container {
+      width: 50vw;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1vw;
+    }
+
+    .loading-text {
+      font-size: clamp(1.2vw, 2vmin, 1.8vw);
+      color: #EBFEB3;
+      font-family: var(--font-main);
+      text-align: center;
+      margin-bottom: 1vw;
+    }
+
+    .loading-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(235, 254, 179, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .loading-bar-fill {
+      height: 100%;
+      background: #EBFEB3;
+      border-radius: 10px;
+      width: 0%;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px rgba(235, 254, 179, 0.5);
+    }
+
+    .loading-percentage {
+      font-size: clamp(1vw, 1.8vmin, 1.5vw);
+      color: rgba(235, 254, 179, 0.8);
+      font-family: var(--font-sub);
+      margin-top: 0.5vw;
+    }
+  </style>
+  <!-- QR 코드 라이브러리 -->
+  <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <!-- html2canvas 라이브러리 (DOM 요소를 이미지로 캡처) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+  <!-- 로딩 화면 -->
+  <div id="loadingOverlay">
+    <div class="loading-pose-container">
+      <img class="loading-pose active" src="loading/pose1.svg" alt="로딩 중" data-pose="1" onerror="console.error('pose1.svg 로드 실패')" />
+      <img class="loading-pose" src="loading/pose2.svg" alt="로딩 중" data-pose="2" onerror="console.error('pose2.svg 로드 실패')" />
+      <img class="loading-pose" src="loading/pose3.svg" alt="로딩 중" data-pose="3" onerror="console.error('pose3.svg 로드 실패')" />
+      <img class="loading-pose" src="loading/pose4.svg" alt="로딩 중" data-pose="4" onerror="console.error('pose4.svg 로드 실패')" />
+    </div>
+    
+    <div class="loading-progress-container">
+      <div class="loading-text">티켓을 생성하고 있습니다...</div>
+      <div class="loading-bar-bg">
+        <div class="loading-bar-fill" id="loadingBarFill"></div>
+      </div>
+      <div class="loading-percentage" id="loadingPercentage">0%</div>
+    </div>
+  </div>
+
+  <!-- 기존 radial 페이지와 동일한 배경/overlay 구조 유지 -->
+  <div id="bgStack" aria-hidden="true">
+    <div id="bgLayer"></div>
+    <div id="screenOverlay"></div>
+  </div>
+
+  <div class="ui-root">
+    <header class="site-header" role="banner">
+      <div class="logo-container" aria-hidden="true">
+        <img class="logo-base" src="asset/symbollogo.png" alt="PORTATO 로고" />
+      </div>
+    </header>
+
+    <main class="app" role="main">
+      <div class="title-box">
+      <h2 class="result-title">포르타토 커스텀 티켓 발급중<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></h2>
+      </div>
+      <p class="result-sub">
+        당신이 상상한 공연의 순간이 티켓에 기록되었습니다.<br>
+        그래픽을 움직여 당신만의 티켓을 완성하고,<br>
+        발급받기 버튼을 눌러 당신의 공연을 포르타토의 기록 속에 남기세요.
+      </p>
+
+      <!-- 티켓 영역 -->
+      <div class="ticket-wrap" id="ticketWrap" aria-hidden="false">
+        <!-- 새로운 티켓 디자인 - 레이어 순서대로 배치 -->
+        <img id="ticketBack" class="ticket-background" src="result/ticket/ticket_back.svg" alt="티켓 백그라운드" />
+        <img id="forestImg" class="forest-image" src="result/ticket/forest_img.png" alt="숲속 이미지" />
+        <img id="leftCircle" class="left-circle" src="result/ticket/left_circle.svg" alt="왼쪽 원형" />
+        <img id="leftSwirl" class="left-swirl" src="result/ticket/left_swirl.svg" alt="왼쪽 스와일" />
+        <div class="right-circle-glow"></div>
+        <img id="rightCircle" class="right-circle" src="result/ticket/right_circle.svg" alt="오른쪽 원형" />
+        
+        <div class="ticket-content" id="ticketContent" aria-hidden="false">
+          <!-- 선택 항목 미리보기(작은 아이콘들) 삽입 - JavaScript로 동적 생성 -->
+          
+          <!-- 사용자 선택에 따른 동적 이미지 표시 영역 -->
+          <!-- JavaScript로 동적 생성됨 -->
+          
+          <!-- 사용자 선택에 따른 동적 이미지 표시 영역 -->
+          <!-- JavaScript로 동적 생성됨 -->
+        </div>
+      </div>
+
+      <!-- 버튼들 (이미지 버튼) -->
+      <div class="ticket-footer">
+        <img id="btnReset" class="btn-img" src="result/reset-btn.svg" alt="위치 초기화" title="위치 초기화" />
+        <div class="footer-buttons-right">
+        <img id="btnReselect" class="btn-img" src="asset/reselect-btn.svg" alt="다시 선택" title="다시 선택" />
+        <img id="btnUseTicket" class="btn-img" src="asset/getticket-btn.svg" alt="티켓 사용하기" title="티켓 사용하기" />
+        </div>
+      </div>
+
+      <!-- QR 및 상태 -->
+      <div class="controls" id="qrArea" aria-hidden="true" style="display:none;">
+        <div id="qrWrap" style="display:flex;flex-direction:column;align-items:center;gap:0.8vw;">
+          <img id="qrImg" alt="티켓 QR 코드" width="160" height="160" style="background:#fff;border-radius:0.8vw;"/>
+          <div style="font-size:clamp(0.7vw,1.2vmin,1vw);color:var(--ink);opacity:.95">QR을 스캔하면 티켓 이미지를 저장할 수 있습니다.</div>
+        </div>
+      </div>
+
+    </main>
+
+    <footer class="site-footer">
+      <small>© 2025 PORTATO</small>
+    </footer>
+  </div>
+
+<script>
+/*
+  result.html logic
+  - reads localStorage.portatoSelections (object)
+  - displays small preview images on ticket
+  - composes a PNG of the ticket by loading ticket left/right/line + preview images into canvas
+  - provides: download button (PNG), "use ticket" which saves to archive (localStorage), and shows QR image (Google Chart QR API)
+*/
+
+// ========================================
+// 로딩 화면 관리
+// ========================================
+let loadingProgress = 0;
+let loadingInterval = null;
+let poseInterval = null;
+let currentPoseIndex = 0;
+
+// 랜덤 pose 전환 시작
+function startPoseAnimation() {
+  const poses = document.querySelectorAll('.loading-pose');
+  console.log('🎭 포즈 애니메이션 시작, 포즈 개수:', poses.length);
+  
+  if (poses.length === 0) {
+    console.error('❌ 포즈 이미지를 찾을 수 없습니다!');
+    return;
+  }
+  
+  poseInterval = setInterval(() => {
+    // 현재 pose 비활성화
+    poses[currentPoseIndex].classList.remove('active');
+    
+    // 랜덤하게 다음 pose 선택 (현재 pose 제외)
+    let nextIndex;
+    do {
+      nextIndex = Math.floor(Math.random() * poses.length);
+    } while (nextIndex === currentPoseIndex);
+    
+    currentPoseIndex = nextIndex;
+    poses[currentPoseIndex].classList.add('active');
+    console.log(`🔄 포즈 전환: ${currentPoseIndex + 1}`);
+  }, 400); // 0.4초마다 전환
+}
+
+// 진행 바 업데이트
+function updateLoadingProgress(progress) {
+  loadingProgress = Math.min(100, progress);
+  const barFill = document.getElementById('loadingBarFill');
+  const percentage = document.getElementById('loadingPercentage');
+  
+  if (barFill) barFill.style.width = loadingProgress + '%';
+  if (percentage) percentage.textContent = Math.round(loadingProgress) + '%';
+}
+
+// 로딩 시작
+function showLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  console.log('🎬 showLoading 호출됨, overlay:', overlay);
+  if (overlay) {
+    overlay.classList.remove('hidden');
+    loadingProgress = 0;
+    updateLoadingProgress(0);
+    startPoseAnimation();
+    console.log('✅ 로딩 화면 표시 완료');
+  } else {
+    console.error('❌ loadingOverlay 요소를 찾을 수 없습니다!');
+  }
+}
+
+// 로딩 종료
+function hideLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  console.log('🏁 hideLoading 호출됨, overlay:', overlay);
+  
+  // 진행 바를 100%로
+  updateLoadingProgress(100);
+  console.log('✅ 진행률 100% 설정 완료');
+  
+  // 애니메이션 정리
+  if (poseInterval) {
+    clearInterval(poseInterval);
+    poseInterval = null;
+    console.log('✅ 포즈 애니메이션 정리 완료');
+  }
+  
+  // 0.5초 후 로딩 화면 숨김
+  setTimeout(() => {
+    if (overlay) {
+      overlay.classList.add('hidden');
+      console.log('✅ 로딩 화면 숨김 완료');
+    }
+  }, 500);
+}
+
+// 점진적 로딩 시뮬레이션 (실제 작업 진행도 반영)
+function simulateLoadingProgress(targetProgress, duration) {
+  const startProgress = loadingProgress;
+  const progressDiff = targetProgress - startProgress;
+  const startTime = Date.now();
+  
+  console.log(`📈 진행률 시뮬레이션: ${startProgress}% → ${targetProgress}% (${duration}ms)`);
+  
+  if (loadingInterval) clearInterval(loadingInterval);
+  
+  loadingInterval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    const currentProgress = startProgress + (progressDiff * progress);
+    updateLoadingProgress(currentProgress);
+    
+    if (progress >= 1) {
+      clearInterval(loadingInterval);
+      loadingInterval = null;
+      console.log(`✅ 진행률 도달: ${targetProgress}%`);
+    }
+  }, 50);
+}
+
+// ========================================
+// 기존 코드 계속
+// ========================================
+
+/* 기본 이미지 매핑: (프로젝트에 맞게 경로 조정 가능)
+   우선순위:
+    1) selections.images (이미 파일 URL 배열이 저장되어 있으면 그대로 사용)
+    2) 기본 매핑 IMG_MAP[group][value] -> asset/result-{group}-{value}.png (fallback)
+*/
+const IMG_MAP = {
+  place: {
+    field:  "result/place_field.png",
+    forest: "result/place_forest.png",
+    lake:   "result/place_lake.png",
+    sea:    "result/place_sea.png"
+  },
+  mood: {
+    classical:    "result/mood_classical.png",
+    romantic:     "result/mood_romantic.png",
+    impressionist:"result/mood_impressionist.png",
+    neoclassical: "result/mood_neoclassical.png"
+  },
+  flow: {
+    lie:     "result/flow_lie.png",
+    sit:     "result/flow_sit.png",
+    walk:    "result/flow_walk.png",
+    scatter: "result/flow_scatter.png"
+  },
+  extras: {
+    talk:       "result/extras_talk.png",
+    tea:        "result/extras_tea.png",
+    instrument: "result/extras_instrument.png",
+    campfire:   "result/extras_campfire.png"
+  }
+};
+
+const ticketBackEl = document.getElementById('ticketBack');
+const forestImgEl = document.getElementById('forestImg');
+const leftCircleEl = document.getElementById('leftCircle');
+const leftSwirlEl = document.getElementById('leftSwirl');
+const rightCircleEl = document.getElementById('rightCircle');
+const rightCircleGlowEl = document.querySelector('.right-circle-glow');
+const ticketContent  = document.getElementById('ticketContent');
+
+// right_circle 크기에 맞춰 glow 원 크기 조정 함수
+function updateRightCircleGlowSize() {
+  if (!rightCircleEl || !rightCircleGlowEl) {
+    console.warn('⚠️ rightCircleEl 또는 rightCircleGlowEl을 찾을 수 없습니다');
+    console.log('rightCircleEl:', rightCircleEl);
+    console.log('rightCircleGlowEl:', rightCircleGlowEl);
+    return;
+  }
+  
+  const rightCircleRect = rightCircleEl.getBoundingClientRect();
+  if (rightCircleRect.width === 0 || rightCircleRect.height === 0) {
+    console.warn('⚠️ rightCircle 크기가 0입니다. 잠시 후 다시 시도합니다.');
+    setTimeout(() => updateRightCircleGlowSize(), 500);
+    return;
+  }
+  
+  // right_circle보다 약간 더 크게 (110% 정도 - 115%에서 110%로 줄임)
+  const glowSize = Math.max(rightCircleRect.width, rightCircleRect.height) * 1.10;
+  
+  // right_circle의 위치와 동일하게 설정
+  const ticketWrap = rightCircleEl.closest('.ticket-wrap');
+  if (ticketWrap) {
+    const ticketWrapRect = ticketWrap.getBoundingClientRect();
+    const rightCircleLeft = rightCircleRect.left - ticketWrapRect.left;
+    const rightCircleTop = rightCircleRect.top - ticketWrapRect.top;
+    const rightCircleCenterX = rightCircleLeft + rightCircleRect.width / 2;
+    const rightCircleCenterY = rightCircleTop + rightCircleRect.height / 2;
+    
+    // glow 원을 right_circle 중심에 맞춰 배치
+    rightCircleGlowEl.style.left = 'auto';
+    rightCircleGlowEl.style.right = 'auto';
+    rightCircleGlowEl.style.top = 'auto';
+    rightCircleGlowEl.style.left = (rightCircleCenterX - glowSize / 2) + 'px';
+    rightCircleGlowEl.style.top = (rightCircleCenterY - glowSize / 2) + 'px';
+    // transform은 애니메이션에서 사용하므로 제거하지 않음 (중심 기준으로 scale 적용)
+    rightCircleGlowEl.style.transformOrigin = 'center center';
+  }
+  
+  rightCircleGlowEl.style.width = glowSize + 'px';
+  rightCircleGlowEl.style.height = glowSize + 'px';
+  
+  // 디버깅: 실제 적용된 스타일 확인
+  const computedStyle = window.getComputedStyle(rightCircleGlowEl);
+  console.log('✨ Glow 원 크기 업데이트:', glowSize + 'px (right_circle: ' + rightCircleRect.width + 'x' + rightCircleRect.height + ')');
+  console.log('📍 Glow 위치:', rightCircleGlowEl.style.left, rightCircleGlowEl.style.top);
+  console.log('🎨 Glow computed style:', {
+    width: computedStyle.width,
+    height: computedStyle.height,
+    opacity: computedStyle.opacity,
+    visibility: computedStyle.visibility,
+    display: computedStyle.display,
+    zIndex: computedStyle.zIndex,
+    background: computedStyle.background
+  });
+}
+const btnReset = document.getElementById('btnReset');
+const btnReselect = document.getElementById('btnReselect');
+const btnUseTicket = document.getElementById('btnUseTicket');
+const btnDownload = document.getElementById('btnDownload');
+if (!btnDownload) {
+  console.warn('btnDownload 요소를 찾을 수 없습니다. 다운로드 기능을 건너뜁니다.');
+}
+const qrArea = document.getElementById('qrArea');
+const qrImg = document.getElementById('qrImg');
+
+const ARCHIVE_KEY = "portato_archive_v1";
+const SELECTION_KEY = "portatoSelections";
+
+/* selections 형식 예상:
+  {
+    place: "forest",
+    mood: "classical",
+    flow: "sit",
+    extras: "tea",
+    instruments: ["바이올린","첼로"],
+    // optional: images: ["asset/...", ...]  <-- 우선순위로 사용
+  }
+*/
+const selections = JSON.parse(localStorage.getItem(SELECTION_KEY) || "{}");
+
+// 디버깅: localStorage 전체 내용 확인
+console.log('=== localStorage 전체 내용 ===');
+for (let i = 0; i < localStorage.length; i++) {
+  const key = localStorage.key(i);
+  const value = localStorage.getItem(key);
+  console.log(`키: "${key}", 값:`, value);
+}
+
+console.log('=== portatoSelections 특별 확인 ===');
+const rawSelections = localStorage.getItem(SELECTION_KEY);
+console.log('원본 JSON 문자열:', rawSelections);
+console.log('파싱된 selections 객체:', selections);
+console.log('selections 타입:', typeof selections);
+console.log('selections 키들:', Object.keys(selections));
+
+// helper: 안전한 이미지 로드 (Image 객체 -> Promise)
+function loadImage(src){
+  return new Promise((resolve) => {
+    // file:// 프로토콜에서는 CORS 설정이 작동하지 않으므로, 
+    // 이미지를 canvas에 그릴 때 blob으로 변환하여 사용
+    const img = new Image();
+    // crossOrigin 문제 방지를 위해 crossOrigin을 설정하지 않음
+    img.onload = ()=> resolve(img);
+    img.onerror = ()=> {
+      console.warn("이미지 로드 실패:", src);
+      resolve(null);
+    };
+    img.src = src;
+  });
+}
+
+// 장소별 배경 이미지 매핑
+const PLACE_BACKGROUNDS = {
+  'lawn': 'result/ticket/lawn_img.png',
+  'forest': 'result/ticket/forest_img.png',
+  'valley': 'result/ticket/valley_img.png',
+  'sea': 'result/ticket/sea_img.png'
+};
+
+// 키워드별 이미지 매핑 (value 값을 키로 사용) - left 폴더 이미지만 사용
+const KEYWORD_IMAGES = {
+  // 장소 (place) - value: 영문 파일명
+  'lawn': { left: 'result/left/Lawn.svg' },
+  'forest': { left: 'result/left/Forest.svg' },
+  'valley': { left: 'result/left/Valley.svg' },
+  'sea': { left: 'result/left/Sea.svg' },
+  
+  // 음악 스타일 (mood) - value: 영문 파일명
+  'baroque': { left: 'result/left/Baroque.svg' },
+  'romantic': { left: 'result/left/Romanticism.svg' },
+  'impression': { left: 'result/left/Impressionism.svg' },
+  'post': { left: 'result/left/Postmodernism.svg' },
+  
+  // 자세 (flow) - value: 영문 파일명
+  'recline': { left: 'result/left/Recline.svg' },
+  'lounge': { left: 'result/left/Lounge.svg' },
+  'settle': { left: 'result/left/Settle.svg' },
+  'wander': { left: 'result/left/Wander.svg' },
+  
+  // 경험 (extras) - value: 영문 파일명
+  'dialogue': { left: 'result/left/Dialogue.svg' },
+  'refresh': { left: 'result/left/Treats.svg' },
+  'play': { left: 'result/left/Playground.svg' },
+  'fire': { left: 'result/left/Fireworks.svg' },
+  
+  // 악기 (instruments) - 한글명: 영문 파일명 (left 폴더만 사용)
+  '바이올린': { left: 'result/left/instruments/Vn.svg' },
+  '비올라': { left: 'result/left/instruments/Vla.svg' },
+  '첼로': { left: 'result/left/instruments/Vc.svg' },
+  '트럼본': { left: 'result/left/instruments/Trb.svg' },
+  '트럼펫': { left: 'result/left/instruments/Tp.svg' },
+  '호른': { left: 'result/left/instruments/Hn.svg' },
+  '플룻': { left: 'result/left/instruments/Fl.svg' },
+  '클라리넷': { left: 'result/left/instruments/Cl.svg' },
+  '콘트라베이스': { left: 'result/left/instruments/Cb.svg' }
+};
+
+// build preview list (ticketContent)
+function buildPreview(){
+  console.log('========================================');
+  console.log('buildPreview() 함수 시작!');
+  console.log('========================================');
+  
+  // 로딩 진행: 10% → 30%
+  simulateLoadingProgress(30, 500);
+  
+  ticketContent.innerHTML = "";
+  
+  // 디버깅: 전체 selections 구조 확인
+  console.log('=== 전체 selections 객체 ===', selections);
+  console.log('selections의 모든 키:', Object.keys(selections));
+  
+  // ticketContent 요소 확인
+  console.log('ticketContent 요소:', ticketContent);
+  console.log('ticketContent가 DOM에 존재:', !!ticketContent);
+  console.log('ticketContent 크기:', ticketContent.getBoundingClientRect());
+  
+  // 사용자 선택된 value 값들 가져오기
+  const selectedValues = [];
+  
+  // 각 단계별로 선택된 value 수집 (place, mood, flow, extras)
+  if (selections.place) selectedValues.push(selections.place);
+  if (selections.mood) selectedValues.push(selections.mood);
+  if (selections.flow) selectedValues.push(selections.flow);
+  if (selections.extras) selectedValues.push(selections.extras);
+  
+  // 악기 선택도 추가 (최대 3개)
+  if (selections.instruments && Array.isArray(selections.instruments)) {
+    selections.instruments.slice(0, 3).forEach(instrument => {
+      selectedValues.push(instrument);
+    });
+  }
+  
+  console.log('선택된 value 값들:', selectedValues);
+  
+  // 만약 선택값이 없다면 테스트용 값 추가
+  if (selectedValues.length === 0) {
+    console.warn('선택된 값이 없습니다. 테스트용 값을 사용합니다.');
+    selectedValues.push('lawn', 'baroque', 'recline', 'dialogue', '바이올린', '첼로');
+  }
+  
+  console.log('=== 선택된 값들 상세 분석 ===');
+  selectedValues.forEach((value, index) => {
+    const imageData = KEYWORD_IMAGES[value];
+    console.log(`${index + 1}. value: "${value}"`);
+    console.log(`   이미지 데이터:`, imageData);
+    if (imageData) {
+      console.log(`   Left 이미지 경로: ${imageData.left}`);
+      console.log(`   Right 이미지 경로: ${imageData.right}`);
+    } else {
+      console.log(`   ❌ 매핑된 이미지 데이터 없음!`);
+    }
+  });
+  
+  // 선택된 value에 해당하는 이미지들 로드
+  const imagePromises = selectedValues.map(value => {
+    const imageData = KEYWORD_IMAGES[value];
+    if (!imageData) {
+      console.warn('value에 해당하는 이미지 없음:', value);
+      return Promise.resolve(null);
+    }
+    
+    console.log(`value "${value}"에 대한 이미지 로드 시도:`, imageData);
+    
+    // left 이미지만 로드
+    return loadImage(imageData.left).then(leftImg => {
+      console.log(`value "${value}" 이미지 로드 결과:`, {
+        leftLoaded: !!leftImg
+      });
+      if (leftImg) {
+        return { value, leftImg };
+      }
+      return null;
+    });
+  });
+  
+  return Promise.all(imagePromises).then(imageResults => {
+    console.log('모든 이미지 로드 완료:', imageResults);
+    
+    // 로딩 진행: 30% → 60%
+    simulateLoadingProgress(60, 800);
+    
+    const validResults = imageResults.filter(result => result !== null);
+    console.log('유효한 이미지 결과 개수:', validResults.length);
+    
+    // 티켓 컨텐츠 영역에 left 이미지만 추가
+    const imageContainer = document.createElement('div');
+    
+    imageContainer.style.cssText = `
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 1vw;
+      width: 100%;
+      height: 100%;
+      padding: 1vw;
+      position: relative;
+      z-index: 20;
+    `;
+    
+    // 각 선택된 value의 left 이미지만 추가
+    validResults.forEach((result, index) => {
+      console.log(`이미지 ${index + 1} 추가 중:`, result.value);
+      
+      // Left 이미지만 사용
+      const leftImg = result.leftImg.cloneNode();
+      leftImg.style.cssText = `
+        width: 8% !important;
+        height: 8% !important;
+        object-fit: contain;
+        display: block !important;
+        position: relative;
+        z-index: 100 !important;
+        margin: 0.5% !important;
+      `;
+      imageContainer.appendChild(leftImg);
+      console.log(`Left 이미지 추가 완료:`, leftImg);
+    });
+    
+    // 컨테이너를 티켓 컨텐츠에 추가
+    ticketContent.appendChild(imageContainer);
+    
+    console.log('티켓 컨텐츠에 이미지 컨테이너 추가 완료');
+    console.log('imageContainer 자식 개수:', imageContainer.children.length);
+    console.log('ticketContent 자식 개수:', ticketContent.children.length);
+    console.log('유효한 결과 개수:', validResults.length);
+    
+    return validResults;
+  });
+}
+
+/* Render ticket as PNG by composing images onto canvas:
+   layout strategy:
+    - desired ticket height = ticketHalfHeight (we follow DOM height)
+    - load left/right images -> scale each to ticketHeight preserving aspect
+    - canvas width = leftW + rightW
+    - draw left at x=0, draw right at x=leftW
+    - draw ticketLine stretched to full width (if available) on top
+    - draw preview icons centered on the ticket content area (we simply draw them centered)
+*/
+async function composeTicketDataURL(){
+  try {
+    console.log('🎫 티켓 생성 시작...');
+    
+    // DOM sizes (ticket halves height controlled by CSS)
+    const ticketWrapRect = document.getElementById('ticketWrap').getBoundingClientRect();
+    const desiredHeight = Math.round(ticketWrapRect.height); // px
+    
+    console.log('📏 티켓 크기:', ticketWrapRect.width, 'x', ticketWrapRect.height);
+
+    // load base images
+    console.log('🖼️ 베이스 이미지 로드 중...');
+    console.log('📍 이미지 소스:', {
+      ticketBack: ticketBackEl?.src,
+      forest: forestImgEl?.src,
+      leftCircle: leftCircleEl?.src,
+      leftSwirl: leftSwirlEl?.src,
+      rightCircle: rightCircleEl?.src
+    });
+    const backImg = await loadImage(ticketBackEl.src);
+    const forestImg = await loadImage(forestImgEl.src);
+    const leftCircleImg = await loadImage(leftCircleEl.src);
+    const leftSwirlImg = await loadImage(leftSwirlEl.src);
+    const rightCircleImg = await loadImage(rightCircleEl.src);
+
+    // 베이스 이미지 로드 실패 시 더미 이미지로 대체
+    if (!backImg){
+      console.warn('⚠️ 베이스 이미지 로드 실패, 더미 이미지로 대체');
+      // 간단한 더미 이미지 생성
+      const dummyImg = document.createElement('canvas');
+      dummyImg.width = 400;
+      dummyImg.height = 200;
+      const ctx = dummyImg.getContext('2d');
+      ctx.fillStyle = '#e6f3f3';
+      ctx.fillRect(0, 0, 400, 200);
+      ctx.fillStyle = '#3C6C71';
+      ctx.font = '20px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('PORTATO TICKET', 200, 100);
+      
+      return dummyImg.toDataURL('image/png');
+    }
+    
+    console.log('✅ 베이스 이미지 로드 완료');
+
+  // ============================================================
+  // 🎨 티켓 요소 배치 설정 - CSS와 동일한 값 사용!
+  // 여기서 값을 수정하면 CSS도 함께 수정해야 합니다.
+  // ============================================================
+  const PLACEMENT_CONFIG = {
+    // 장소 이미지 배치
+    placeImage: {
+      left: 0.15,      // left: 15%
+      bottom: 0.05,   // bottom: 5%
+      width: 0.45,    // width: 45%
+      height: 0.60    // height: 60% (CSS는 auto이지만 JS에서는 비율 계산 필요)
+    },
+    // 왼쪽 원형 배치
+    leftCircle: {
+      left: 0.15,     // left: 15%
+      top: 0.55,      // top: 55%
+      width: 0.33     // width: 33%
+    },
+    // 왼쪽 스와일 배치
+    leftSwirl: {
+      left: 0.14,     // left: 14%
+      top: 0.65,      // top: 65%
+      width: 0.22     // width: 22%
+    },
+    // 오른쪽 원형 배치
+    rightCircle: {
+      right: 0.15,    // right: 15%
+      top: 0.55,      // top: 55%
+      width: 0.33     // width: 33%
+    }
+  };
+
+  // 12:7 비율로 캔버스 생성 (티켓 백그라운드의 실제 렌더링 크기 가져오기)
+  const ticketBackRect = ticketBackEl.getBoundingClientRect();
+  const ticketBackRatio = 12 / 7;
+  
+  // 12:7 비율을 강제로 적용
+  let canvasW = Math.round(ticketBackRect.width);
+  let canvasH = Math.round(canvasW / ticketBackRatio);
+  
+  // 스케일 비율 계산 (DOM 크기 -> 캔버스 크기)
+  // 주의: canvasH는 12:7 비율에 의해 ticketBackRect.height와 다를 수 있음
+  const scaleX = 1.0; // 가로는 동일
+  const scaleY = canvasH / ticketBackRect.height; // 세로만 비율 적용
+  
+  console.log('🔍 디버그 정보:');
+  console.log('  ticketWrapRect:', ticketWrapRect.width, 'x', ticketWrapRect.height);
+  console.log('  ticketBackRect:', ticketBackRect.width, 'x', ticketBackRect.height);
+  console.log('  canvas 크기 (12:7 강제):', canvasW, 'x', canvasH);
+  console.log('  스케일 비율:', scaleX, 'x', scaleY);
+
+  // prepare canvas
+  const cvs = document.createElement('canvas');
+  cvs.width = canvasW;
+  cvs.height = canvasH;
+  const ctx = cvs.getContext('2d');
+
+  // 새로운 티켓 레이어 순서대로 그리기 (DOM에서 실제 위치 그대로 캡처)
+  // 1. ticket_back.svg (백그라운드) - 12:7 비율로 그리기
+  if (backImg) {
+    const x = 0;
+    const y = 0;
+    ctx.drawImage(backImg, x, y, canvasW, canvasH);
+    console.log('✅ 티켓 백그라운드:', x, y, canvasW, canvasH);
+  }
+  
+  // 2. 장소별 이미지 (forest_img.png 등) - DOM 위치 스케일 적용
+  if (forestImg) {
+    const forestRect = forestImgEl.getBoundingClientRect();
+    const x = (forestRect.left - ticketBackRect.left) * scaleX;
+    const y = (forestRect.top - ticketBackRect.top) * scaleY;
+    const w = forestRect.width * scaleX;
+    const h = forestRect.height * scaleY;
+    console.log('  forest: rect at', forestRect.left, forestRect.top, forestRect.width, 'x', forestRect.height, '-> canvas at', x, y, w, 'x', h);
+    ctx.drawImage(forestImg, 0, 0, forestImg.naturalWidth, forestImg.naturalHeight, x, y, w, h);
+  }
+  
+  // 3. left_circle.svg (왼쪽 원형) - DOM 위치 스케일 적용
+  if (leftCircleImg) {
+    const leftCircleRect = leftCircleEl.getBoundingClientRect();
+    const x = (leftCircleRect.left - ticketBackRect.left) * scaleX;
+    const y = (leftCircleRect.top - ticketBackRect.top) * scaleY;
+    const w = leftCircleRect.width * scaleX;
+    const h = leftCircleRect.height * scaleY;
+    console.log('  leftCircle: rect at', leftCircleRect.left, leftCircleRect.top, leftCircleRect.width, 'x', leftCircleRect.height, '-> canvas at', x, y, w, 'x', h);
+    ctx.drawImage(leftCircleImg, 0, 0, leftCircleImg.naturalWidth, leftCircleImg.naturalHeight, x, y, w, h);
+  }
+  
+  // 4. left_swirl.svg (왼쪽 스와일) - DOM 위치 스케일 적용
+  if (leftSwirlImg) {
+    const leftSwirlRect = leftSwirlEl.getBoundingClientRect();
+    const x = (leftSwirlRect.left - ticketBackRect.left) * scaleX;
+    const y = (leftSwirlRect.top - ticketBackRect.top) * scaleY;
+    const w = leftSwirlRect.width * scaleX;
+    const h = leftSwirlRect.height * scaleY;
+    console.log('  leftSwirl: rect at', leftSwirlRect.left, leftSwirlRect.top, leftSwirlRect.width, 'x', leftSwirlRect.height, '-> canvas at', x, y, w, 'x', h);
+    ctx.drawImage(leftSwirlImg, 0, 0, leftSwirlImg.naturalWidth, leftSwirlImg.naturalHeight, x, y, w, h);
+  }
+  
+  // 5. right_circle.svg (오른쪽 원형) - DOM 위치 스케일 적용
+  if (rightCircleImg) {
+    const rightCircleRect = rightCircleEl.getBoundingClientRect();
+    const x = (rightCircleRect.left - ticketBackRect.left) * scaleX;
+    const y = (rightCircleRect.top - ticketBackRect.top) * scaleY;
+    const w = rightCircleRect.width * scaleX;
+    const h = rightCircleRect.height * scaleY;
+    console.log('  rightCircle: rect at', rightCircleRect.left, rightCircleRect.top, rightCircleRect.width, 'x', rightCircleRect.height, '-> canvas at', x, y, w, 'x', h);
+    ctx.drawImage(rightCircleImg, 0, 0, rightCircleImg.naturalWidth, rightCircleImg.naturalHeight, x, y, w, h);
+  }
+
+  // draw draggable images at their current positions
+  // get the draggable images currently in ticketContent DOM with their actual positions
+  const draggableNodes = Array.from(ticketContent.querySelectorAll('.draggable-img'));
+  console.log('🎨 드래그 가능한 이미지 개수:', draggableNodes.length);
+  if (draggableNodes.length){
+    // Get ticketContent position relative to ticketBackRect for accurate positioning
+    const ticketContentRect = ticketContent.getBoundingClientRect();
+    
+    // Calculate offset of ticketContent relative to ticketBackRect
+    const contentOffsetX = ticketContentRect.left - ticketBackRect.left;
+    const contentOffsetY = ticketContentRect.top - ticketBackRect.top;
+    
+    for (const node of draggableNodes) {
+      try {
+        // Load the image
+        const img = await loadImage(node.src);
+        if (!img) continue;
+        
+        // Get current position and size from style
+        const leftPercent = parseFloat(node.style.left) || 0;
+        const topPercent = parseFloat(node.style.top) || 0;
+        const widthPx = parseFloat(node.style.width) || node.naturalWidth || img.naturalWidth;
+        const heightPx = parseFloat(node.style.height) || node.naturalHeight || img.naturalHeight;
+        
+        // Convert percentage to canvas coordinates
+        // left/top are percentages relative to ticketContent
+        // Account for transform: translate(-50%, -50%) by subtracting half width/height
+        const actualLeft = (contentOffsetX + (leftPercent / 100) * ticketContentRect.width - (widthPx / 2)) * scaleX;
+        const actualTop = (contentOffsetY + (topPercent / 100) * ticketContentRect.height - (heightPx / 2)) * scaleY;
+        const actualW = widthPx * scaleX;
+        const actualH = heightPx * scaleY;
+        
+        // Draw the image at its actual position on canvas
+        ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 
+                      actualLeft, actualTop, actualW, actualH);
+      } catch (err) {
+        console.warn('⚠️ 이미지 그리기 실패:', node.src, err);
+      }
+    }
+  }
+
+  console.log('🎨 티켓 캔버스 생성 완료');
+  
+  // file:// 프로토콜에서 toDataURL이 막힐 수 있으므로 항상 toBlob 사용
+  // CORS 문제 방지를 위해 toBlob을 직접 사용
+  return new Promise((resolve, reject) => {
+    try {
+      cvs.toBlob((blob) => {
+        if (!blob) {
+          // toBlob 실패 시 toDataURL 시도
+          try {
+            const dataURL = cvs.toDataURL('image/png');
+            resolve(dataURL);
+          } catch (dataURLError) {
+            console.error('❌ toBlob과 toDataURL 모두 실패:', dataURLError);
+            reject(new Error('이미지 변환 실패'));
+          }
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => {
+          console.error('❌ FileReader 실패:', reader.error);
+          reject(reader.error);
+        };
+        reader.readAsDataURL(blob);
+      }, 'image/png');
+    } catch (error) {
+      console.warn('⚠️ toBlob 호출 실패, toDataURL 시도:', error);
+      try {
+        const dataURL = cvs.toDataURL('image/png');
+        resolve(dataURL);
+      } catch (dataURLError) {
+        reject(dataURLError);
+      }
+    }
+  });
+  
+  } catch (error) {
+    console.error('❌ 티켓 생성 오류:', error);
+    throw error;
+  }
+}
+
+// 오른쪽 티켓만 캡쳐하는 함수
+async function captureRightTicket() {
+  try {
+    console.log('📸 오른쪽 티켓 캡쳐 시작...');
+    
+    const ticketWrap = document.getElementById('ticketWrap');
+    const ticketContent = document.getElementById('ticketContent');
+    
+    if (!ticketWrap || !ticketContent) {
+      throw new Error('티켓 요소를 찾을 수 없습니다');
+    }
+    
+    // 티켓 전체 영역의 크기와 위치 계산
+    const wrapRect = ticketWrap.getBoundingClientRect();
+    const contentRect = ticketContent.getBoundingClientRect();
+    
+    // 캔버스 생성 (티켓 전체 크기)
+    const canvas = document.createElement('canvas');
+    canvas.width = wrapRect.width;
+    canvas.height = wrapRect.height;
+    const ctx = canvas.getContext('2d');
+    
+    // 새로운 티켓 이미지들 로드 시도
+    try {
+      const backImg = await loadImage(ticketBackEl.src);
+      const forestImg = await loadImage(forestImgEl.src);
+      const leftCircleImg = await loadImage(leftCircleEl.src);
+      const leftSwirlImg = await loadImage(leftSwirlEl.src);
+      const rightCircleImg = await loadImage(rightCircleEl.src);
+      
+      // 배치 설정 (composeTicketDataURL와 동일)
+      const PLACEMENT_CONFIG_RIGHT = {
+        placeImage: { left: 0.15, bottom: 0.05, width: 0.45, height: 0.60 },
+        leftCircle: { left: 0.15, top: 0.55, width: 0.33 },
+        leftSwirl: { left: 0.14, top: 0.65, width: 0.22 },
+        rightCircle: { right: 0.15, top: 0.55, width: 0.33 }
+      };
+      
+      // 레이어 순서대로 그리기 (크기 최적화)
+      if (backImg) ctx.drawImage(backImg, 0, 0, canvas.width, canvas.height);
+      
+      // 장소별 이미지 - 티켓 백그라운드 안에만 배치
+      if (forestImg) {
+        const p = PLACEMENT_CONFIG_RIGHT.placeImage;
+        const forestW = Math.round(canvas.width * p.width);
+        const forestH = Math.round(canvas.height * p.height);
+        const forestX = Math.round(canvas.width * p.left);
+        const forestY = Math.round(canvas.height * (1 - p.height - p.bottom));
+        // 경계 검증
+        const maxX = canvas.width * 0.95;
+        const actualW = Math.min(forestW, maxX - forestX);
+        ctx.drawImage(forestImg, 0, 0, forestImg.naturalWidth, forestImg.naturalHeight, forestX, forestY, actualW, forestH);
+      }
+      
+      // 왼쪽 원형 - 티켓 백그라운드 안에만 배치
+      if (leftCircleImg) {
+        const p = PLACEMENT_CONFIG_RIGHT.leftCircle;
+        const leftW = Math.round(canvas.width * p.width);
+        const leftH = Math.round(canvas.width * p.width * (leftCircleImg.naturalHeight / leftCircleImg.naturalWidth));
+        const leftX = Math.round(canvas.width * p.left);
+        const leftY = Math.round((canvas.height - leftH) / 2);
+        // 경계 검증
+        const maxW = canvas.width * 0.90;
+        const actualW = Math.min(leftW, maxW - leftX);
+        const actualH = Math.round(actualW * (leftCircleImg.naturalHeight / leftCircleImg.naturalWidth));
+        ctx.drawImage(leftCircleImg, 0, 0, leftCircleImg.naturalWidth, leftCircleImg.naturalHeight, leftX, leftY, actualW, actualH);
+      }
+      
+      // 왼쪽 스와일 - 티켓 백그라운드 안에만 배치
+      if (leftSwirlImg) {
+        const p = PLACEMENT_CONFIG_RIGHT.leftSwirl;
+        const leftW = Math.round(canvas.width * p.width);
+        const leftH = Math.round(canvas.width * p.width * (leftSwirlImg.naturalHeight / leftSwirlImg.naturalWidth));
+        const leftX = Math.round(canvas.width * p.left);
+        const leftY = Math.round((canvas.height - leftH) / 2);
+        // 경계 검증
+        const maxW = canvas.width * 0.90;
+        const actualW = Math.min(leftW, maxW - leftX);
+        const actualH = Math.round(actualW * (leftSwirlImg.naturalHeight / leftSwirlImg.naturalWidth));
+        ctx.drawImage(leftSwirlImg, 0, 0, leftSwirlImg.naturalWidth, leftSwirlImg.naturalHeight, leftX, leftY, actualW, actualH);
+      }
+      
+      // 오른쪽 원형 - 티켓 백그라운드 안에만 배치
+      if (rightCircleImg) {
+        const p = PLACEMENT_CONFIG_RIGHT.rightCircle;
+        const rightW = Math.round(canvas.width * p.width);
+        const rightH = Math.round(canvas.width * p.width * (rightCircleImg.naturalHeight / rightCircleImg.naturalWidth));
+        const rightX = Math.round(canvas.width * (1 - p.width - p.right));
+        const rightY = Math.round((canvas.height - rightH) / 2);
+        // 경계 검증
+        const maxX = canvas.width * 0.95;
+        const actualW = Math.min(rightW, rightX);
+        const actualH = Math.round(actualW * (rightCircleImg.naturalHeight / rightCircleImg.naturalWidth));
+        ctx.drawImage(rightCircleImg, 0, 0, rightCircleImg.naturalWidth, rightCircleImg.naturalHeight, rightX, rightY, actualW, actualH);
+      }
+      
+      console.log('✅ 새로운 티켓 이미지들 로드 성공');
+    } catch (error) {
+      console.warn('⚠️ 새로운 티켓 이미지 로드 실패, 배경만 생성');
+      // 베이스 이미지 로드 실패 시 배경만 생성
+      ctx.fillStyle = '#e6f3f3';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#3C6C71';
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('PORTATO', canvas.width/2, canvas.height/2);
+    }
+    
+    // 티켓 위의 사용자 선택 이미지들 추가
+    const leftImages = ticketContent.querySelectorAll('.draggable-img');
+    console.log('🎨 왼쪽 이미지들 추가:', leftImages.length);
+    
+    leftImages.forEach((img, index) => {
+      try {
+        const imgRect = img.getBoundingClientRect();
+        const relativeX = imgRect.left - wrapRect.left;
+        const relativeY = imgRect.top - wrapRect.top;
+        
+        // 이미지가 티켓 영역 내에 있는지 확인
+        if (relativeX >= 0 && relativeY >= 0 && 
+            relativeX + imgRect.width <= canvas.width && 
+            relativeY + imgRect.height <= canvas.height) {
+          
+          // SVG 이미지의 경우 직접 그리기
+          if (img.src.endsWith('.svg')) {
+            ctx.fillStyle = '#3C6C71';
+            ctx.font = '12px Arial';
+            ctx.fillText(`이미지${index + 1}`, relativeX, relativeY + 15);
+          }
+        }
+      } catch (error) {
+        console.warn(`이미지 ${index + 1} 처리 실패:`, error);
+      }
+    });
+    
+    console.log('✅ 오른쪽 티켓 캡쳐 완료');
+    return canvas.toDataURL('image/png');
+    
+  } catch (error) {
+    console.error('❌ 오른쪽 티켓 캡쳐 실패:', error);
+    throw error;
+  }
+}
+
+/* UI actions */
+
+// 🔄 위치 초기화 함수: 모든 드래그 가능한 이미지를 초기 위치로 복원
+function resetImagePositions() {
+  const draggableImages = document.querySelectorAll('.draggable-img');
+  console.log('🔄 이미지 위치 초기화 시작, 드래그 가능한 이미지:', draggableImages.length);
+  
+  // 드래그 가능한 이미지 초기화
+  draggableImages.forEach((img, index) => {
+    const initialLeft = img.dataset.initialLeft;
+    const initialTop = img.dataset.initialTop;
+    
+    if (initialLeft && initialTop) {
+      img.style.left = initialLeft;
+      img.style.top = initialTop;
+      console.log(`✅ 이미지 ${index + 1} 초기 위치로 복원: left=${initialLeft}, top=${initialTop}`);
+    } else {
+      console.warn(`⚠️ 이미지 ${index + 1}에 초기 위치 데이터가 없습니다.`);
+    }
+  });
+  
+  console.log('✅ 모든 이미지 위치 초기화 완료');
+}
+
+// 위치 초기화 버튼 이벤트 리스너
+if (btnReset) {
+  btnReset.addEventListener('click', ()=> {
+    console.log('🔄 위치 초기화 버튼 클릭됨');
+    resetImagePositions();
+  });
+}
+
+btnReselect.addEventListener('click', ()=> {
+  // clear selections and return to index (or radial)
+  localStorage.removeItem(SELECTION_KEY);
+  localStorage.removeItem('portatoCurrentStep');
+  location.href = 'index.html';
+});
+
+btnUseTicket.addEventListener('click', async ()=> {
+  try {
+    btnUseTicket.disabled = true;
+    btnUseTicket.style.opacity = '.6';
+    
+    // left_circle 회전 애니메이션만 중지 (원래 있던 요소이므로 존재는 유지)
+    if (leftCircleEl) {
+      leftCircleEl.style.animationPlayState = 'paused';
+    }
+    
+    // right_circle glow 원 완전히 숨기기 (강조용으로 추가한 요소이므로 애니메이션 중지 + 존재 숨김)
+    if (rightCircleGlowEl) {
+      rightCircleGlowEl.style.animationPlayState = 'paused'; // 애니메이션 중지
+      rightCircleGlowEl.style.setProperty('display', 'none', 'important'); // 완전히 숨김 (!important로 강제)
+      rightCircleGlowEl.style.setProperty('opacity', '0', 'important'); // 투명하게
+      rightCircleGlowEl.style.setProperty('visibility', 'hidden', 'important'); // 완전히 숨김
+    }
+    
+    console.log('🎫 티켓 저장 및 고정 시작...');
+    
+    // 오른쪽 right_circle 영역의 그래픽 배치 정보 수집
+    const ticketContent = document.getElementById('ticketContent');
+    const rightCircle = document.getElementById('rightCircle');
+    const imagePositions = [];
+    
+    // right_circle 내부의 모든 드래그 가능한 이미지 위치 정보 수집
+    const draggableImages = ticketContent.querySelectorAll('.draggable-img');
+    
+    console.log('🔍 드래그 가능한 이미지 개수:', draggableImages.length);
+    
+    draggableImages.forEach((img, index) => {
+      // right_circle 내부에 있는 이미지만 수집
+      const imgRect = img.getBoundingClientRect();
+      const circleRect = rightCircle ? rightCircle.getBoundingClientRect() : null;
+      
+      if (circleRect) {
+        // 이미지가 right_circle와 겹치는지 확인
+        const isOverlapping = !(imgRect.right < circleRect.left || 
+                                 imgRect.left > circleRect.right || 
+                                 imgRect.bottom < circleRect.top || 
+                                 imgRect.top > circleRect.bottom);
+        
+        if (isOverlapping) {
+          // 이미지의 실제 위치와 크기를 픽셀로 계산
+          const imgLeftPx = imgRect.left - circleRect.left;
+          const imgTopPx = imgRect.top - circleRect.top;
+          const imgWidthPx = imgRect.width;
+          const imgHeightPx = imgRect.height;
+          
+          // right_circle의 크기를 기준으로 상대 위치 계산 (0~1 범위)
+          const relativeLeft = imgLeftPx / circleRect.width;
+          const relativeTop = imgTopPx / circleRect.height;
+          const relativeWidth = imgWidthPx / circleRect.width;
+          const relativeHeight = imgHeightPx / circleRect.height;
+      
+          imagePositions.push({
+            index: index,
+            // right_circle 기준 상대 위치 (0~1 범위)
+            relativeLeft: relativeLeft,
+            relativeTop: relativeTop,
+            relativeWidth: relativeWidth,
+            relativeHeight: relativeHeight,
+            src: img.src,
+            alt: img.alt,
+            transform: img.style.transform || ''
+          });
+          
+          console.log(`📍 right_circle 이미지 ${index + 1} 상대 위치: left=${relativeLeft.toFixed(3)}, top=${relativeTop.toFixed(3)}, size=${relativeWidth.toFixed(3)}x${relativeHeight.toFixed(3)}`);
+        }
+      }
+    });
+    
+    // 모든 드래그 비활성화
+    draggableImages.forEach(img => {
+      img.style.pointerEvents = 'none';
+      img.style.cursor = 'default';
+      // 드래그 이벤트 제거
+      if (img._dragMouseDown) {
+        img.removeEventListener('mousedown', img._dragMouseDown);
+      }
+    });
+    
+    console.log('✅ 드래그 비활성화 완료');
+    
+    // right_circle 영역을 이미지로 캡쳐 (html2canvas 사용 - 가장 정확)
+    let rightCircleImageDataURL = null;
+    if (rightCircle && ticketContent && typeof html2canvas !== 'undefined') {
+      try {
+        const ticketWrapEl = document.getElementById('ticketWrap');
+        if (!ticketWrapEl) {
+          console.warn('⚠️ ticketWrap 요소를 찾을 수 없습니다.');
+        } else {
+          // right_circle와 그래픽만 캡쳐 (배경 이미지 제외)
+          // 배경 이미지들 숨기기 (ticket_back, forest_img, left_circle, left_swirl)
+          const ticketBack = document.getElementById('ticketBack');
+          const forestImgEl = document.getElementById('forestImg');
+          const leftCircle = document.getElementById('leftCircle');
+          const leftSwirl = document.getElementById('leftSwirl');
+          
+          const hiddenElements = [];
+          [ticketBack, forestImgEl, leftCircle, leftSwirl].forEach(el => {
+            if (el) {
+              const originalDisplay = window.getComputedStyle(el).display;
+              el.style.display = 'none';
+              hiddenElements.push({ element: el, originalDisplay: originalDisplay });
+            }
+          });
+          
+          // 텍스트 요소들도 숨기기
+          const textElements = [];
+          const allElements = ticketWrapEl.querySelectorAll('*');
+          allElements.forEach(el => {
+            if (el.tagName !== 'IMG') {
+              const computedStyle = window.getComputedStyle(el);
+              const zIndex = computedStyle.zIndex;
+              const hasText = el.textContent && el.textContent.trim().length > 0;
+              
+              if ((zIndex === '150' || zIndex === '160' || parseInt(zIndex) === 150 || parseInt(zIndex) === 160) && hasText) {
+                const originalVisibility = computedStyle.visibility;
+                el.style.visibility = 'hidden';
+                textElements.push({ element: el, originalVisibility: originalVisibility });
+              }
+            }
+          });
+          
+          console.log(`📝 ${hiddenElements.length}개의 배경 이미지를 숨김`);
+          console.log(`📝 ${textElements.length}개의 텍스트 요소를 숨김`);
+          
+          // right_circle 영역의 위치를 onclone에서 계산하여 더 정확하게
+          let rightCircleCropData = null;
+          
+          // 프로토콜 감지 (file:// vs http/https)
+          const isFileProtocol = window.location.protocol === 'file:';
+          const isLocalhost = window.location.hostname === 'localhost' || 
+                              window.location.hostname === '127.0.0.1';
+          const isProduction = !isFileProtocol && !isLocalhost; // GitHub Pages 등 프로덕션 환경
+          
+          // 전체 티켓 캡쳐 (배경 이미지와 텍스트 없음)
+          const fullCanvas = await html2canvas(ticketWrapEl, {
+            useCORS: !isFileProtocol, // http/https에서는 true (GitHub Pages에서 정상 작동)
+            allowTaint: isFileProtocol, // file://에서만 true
+            backgroundColor: null,
+            scale: 2,
+            logging: !isProduction, // 프로덕션에서는 로깅 비활성화
+            onclone: (clonedDoc, element) => {
+              // 클론된 문서에서 right_circle 위치 계산
+              const clonedRightCircle = clonedDoc.getElementById('rightCircle');
+              const clonedTicketWrap = clonedDoc.getElementById('ticketWrap');
+              
+              if (clonedRightCircle && clonedTicketWrap) {
+                const clonedRightCircleRect = clonedRightCircle.getBoundingClientRect();
+                const clonedTicketWrapRect = clonedTicketWrap.getBoundingClientRect();
+                
+                const scale = 2;
+                const cropX = (clonedRightCircleRect.left - clonedTicketWrapRect.left) * scale;
+                const cropY = (clonedRightCircleRect.top - clonedTicketWrapRect.top) * scale;
+                const cropW = clonedRightCircleRect.width * scale;
+                const cropH = clonedRightCircleRect.height * scale;
+                
+                rightCircleCropData = { cropX, cropY, cropW, cropH };
+                console.log(`📐 onclone에서 계산된 좌표: cropX=${cropX}, cropY=${cropY}, cropW=${cropW}, cropH=${cropH}`);
+              }
+            }
+          });
+          
+          // 숨긴 요소들 복원
+          hiddenElements.forEach(({ element, originalDisplay }) => {
+            element.style.display = originalDisplay;
+          });
+          textElements.forEach(({ element, originalVisibility }) => {
+            element.style.visibility = originalVisibility;
+          });
+          console.log(`📝 모든 요소 복원 완료`);
+          
+          // right_circle 영역만 잘라내기
+          let cropX, cropY, cropW, cropH;
+          
+          if (rightCircleCropData) {
+            // onclone에서 계산된 좌표 사용 (가장 정확)
+            cropX = rightCircleCropData.cropX;
+            cropY = rightCircleCropData.cropY;
+            cropW = rightCircleCropData.cropW;
+            cropH = rightCircleCropData.cropH;
+            console.log(`✅ onclone 좌표 사용`);
+          } else {
+            // fallback: getBoundingClientRect 사용
+            const rightCircleRect = rightCircle.getBoundingClientRect();
+            const ticketWrapRect = ticketWrapEl.getBoundingClientRect();
+            const scale = 2;
+            cropX = (rightCircleRect.left - ticketWrapRect.left) * scale;
+            cropY = (rightCircleRect.top - ticketWrapRect.top) * scale;
+            cropW = rightCircleRect.width * scale;
+            cropH = rightCircleRect.height * scale;
+            console.log(`⚠️ getBoundingClientRect 좌표 사용 (fallback)`);
+          }
+          
+          console.log(`📐 최종 캡처 좌표: cropX=${cropX}, cropY=${cropY}, cropW=${cropW}, cropH=${cropH}`);
+          
+          const cropCanvas = document.createElement('canvas');
+          cropCanvas.width = cropW;
+          cropCanvas.height = cropH;
+          const cropCtx = cropCanvas.getContext('2d');
+          
+          cropCtx.drawImage(fullCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+          
+          // toDataURL 실패 시 toBlob 사용
+          try {
+            rightCircleImageDataURL = cropCanvas.toDataURL('image/png');
+          } catch (dataURLError) {
+            console.warn('⚠️ toDataURL 실패, toBlob으로 대체:', dataURLError);
+            rightCircleImageDataURL = await new Promise((resolve, reject) => {
+              cropCanvas.toBlob((blob) => {
+                if (!blob) {
+                  reject(new Error('toBlob 실패'));
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              }, 'image/png');
+            });
+          }
+          console.log(`✅ right_circle 영역 캡쳐 완료 (배경 이미지 제외, 오직 원과 그래픽만)`);
+          console.log(`📊 캡쳐된 이미지 데이터 크기: ${(rightCircleImageDataURL.length / 1024).toFixed(2)}KB`);
+        }
+      } catch (error) {
+        console.error('❌ right_circle 캡쳐 실패:', error);
+        console.warn('⚠️ file:// 프로토콜에서는 캡처가 제한될 수 있습니다. 로컬 서버(http://localhost) 사용을 권장합니다.');
+        // fallback 방식 제거 - file:// 프로토콜에서 너무 많은 CORS 에러 발생
+        // 첫 번째 방식이 실패하면 rightCircleImage는 null로 저장
+        rightCircleImageDataURL = null;
+        
+        /* fallback 방식 비활성화 - CORS 문제로 인해 제거
+        try {
+          const ticketWrapEl = document.getElementById('ticketWrap');
+          if (!ticketWrapEl) {
+            console.warn('⚠️ ticketWrap 요소를 찾을 수 없어 fallback도 실패합니다.');
+          } else {
+            // 결과 페이지는 전혀 건드리지 않고, 임시 컨테이너에서만 작업
+            const rightCircleRect = rightCircle.getBoundingClientRect();
+          
+          // right_circle만 포함하는 임시 컨테이너 생성 (화면 밖에 배치)
+          const tempContainer = document.createElement('div');
+          tempContainer.style.cssText = `
+            position: fixed;
+            left: -9999px;
+            top: -9999px;
+            width: ${rightCircleRect.width}px;
+            height: ${rightCircleRect.height}px;
+            overflow: visible;
+            background: transparent;
+          `;
+          
+          // right_circle 배경 이미지 로드 및 클론 생성
+          const rightCircleImg = new Image();
+          await new Promise((resolve, reject) => {
+            rightCircleImg.onload = resolve;
+            rightCircleImg.onerror = reject;
+            rightCircleImg.src = rightCircle.src;
+          });
+          
+          // right_circle 배경 이미지를 blob URL로 변환하여 CORS 문제 해결
+          let rightCircleBgSrc = rightCircle.src;
+          try {
+            const bgCanvas = document.createElement('canvas');
+            bgCanvas.width = rightCircle.naturalWidth || rightCircle.width;
+            bgCanvas.height = rightCircle.naturalHeight || rightCircle.height;
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCtx.drawImage(rightCircle, 0, 0);
+            
+            rightCircleBgSrc = await new Promise((resolve, reject) => {
+              bgCanvas.toBlob((blob) => {
+                if (blob) {
+                  resolve(URL.createObjectURL(blob));
+                } else {
+                  reject(new Error('toBlob 실패'));
+                }
+              }, 'image/png');
+            });
+          } catch (bgBlobError) {
+            console.warn('⚠️ rightCircle 배경 blob 변환 실패, 원본 사용:', bgBlobError);
+            rightCircleBgSrc = rightCircle.src;
+          }
+          
+          // right_circle 배경 이미지 생성 및 로드 대기
+          const rightCircleBg = document.createElement('img');
+          await new Promise((resolve, reject) => {
+            rightCircleBg.onload = resolve;
+            rightCircleBg.onerror = reject;
+            rightCircleBg.src = rightCircleBgSrc;
+          });
+          
+          rightCircleBg.style.cssText = `
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+          `;
+          tempContainer.appendChild(rightCircleBg);
+          
+          // ticketWrap 기준 위치 계산을 위해 실제 크기 가져오기
+          const ticketWrapRect = ticketWrapEl.getBoundingClientRect();
+          
+          console.log(`📊 캡처 정보: right_circle 크기=${rightCircleRect.width}x${rightCircleRect.height}, 드래그 이미지 개수=${draggableImages.length}`);
+          console.log(`📍 right_circle 위치: left=${rightCircleRect.left}, top=${rightCircleRect.top}`);
+          
+          // right_circle 내부의 드래그 가능한 이미지들 복사 (정확한 위치 유지)
+          let copiedImageCount = 0;
+          for (const img of draggableImages) {
+            const imgRect = img.getBoundingClientRect();
+            console.log(`🔍 이미지 ${img.alt || img.src} 위치: left=${imgRect.left}, top=${imgRect.top}, size=${imgRect.width}x${imgRect.height}`);
+            
+            const isOverlapping = !(imgRect.right < rightCircleRect.left || 
+                                   imgRect.left > rightCircleRect.right || 
+                                   imgRect.bottom < rightCircleRect.top || 
+                                   imgRect.top > rightCircleRect.bottom);
+            
+            console.log(`  겹침 여부: ${isOverlapping ? '✅ 겹침' : '❌ 겹치지 않음'}`);
+            
+            if (isOverlapping) {
+              // 이미지의 실제 스타일 속성 읽기 (퍼센트 값)
+              const imgStyleLeft = img.style.left || window.getComputedStyle(img).left;
+              const imgStyleTop = img.style.top || window.getComputedStyle(img).top;
+              const imgStyleTransform = img.style.transform || window.getComputedStyle(img).transform;
+              const imgStyleWidth = img.style.width || window.getComputedStyle(img).width;
+              const imgStyleHeight = img.style.height || window.getComputedStyle(img).height;
+              
+              // 퍼센트 값을 실제 픽셀 값으로 변환 (ticketWrap 기준)
+              let imgLeftPx, imgTopPx;
+              
+              if (imgStyleLeft.includes('%')) {
+                // 퍼센트 값인 경우 ticketWrap 기준으로 계산
+                const percentLeft = parseFloat(imgStyleLeft);
+                imgLeftPx = (ticketWrapRect.width * percentLeft / 100);
+              } else {
+                // 픽셀 값인 경우
+                imgLeftPx = parseFloat(imgStyleLeft) || 0;
+              }
+              
+              if (imgStyleTop.includes('%')) {
+                // 퍼센트 값인 경우 ticketWrap 기준으로 계산
+                const percentTop = parseFloat(imgStyleTop);
+                imgTopPx = (ticketWrapRect.height * percentTop / 100);
+              } else {
+                // 픽셀 값인 경우
+                imgTopPx = parseFloat(imgStyleTop) || 0;
+              }
+              
+              // right_circle 기준 상대 위치로 변환
+              const ticketContentRect = ticketContent.getBoundingClientRect();
+              const rightCircleInTicketWrapLeft = rightCircleRect.left - ticketContentRect.left;
+              const rightCircleInTicketWrapTop = rightCircleRect.top - ticketContentRect.top;
+              
+              // 실제 이미지 중심 위치 계산 (transform 고려)
+              let actualImgLeftPx = imgLeftPx;
+              let actualImgTopPx = imgTopPx;
+              
+              if (imgStyleTransform && imgStyleTransform.includes('translate')) {
+                // translate(-50%, -50%) 같은 경우 중심 기준이므로 조정 필요
+                const match = imgStyleTransform.match(/translate\(([^)]+)\)/);
+                if (match) {
+                  const translateValues = match[1].split(',').map(v => v.trim());
+                  const translateX = translateValues[0];
+                  const translateY = translateValues[1] || translateValues[0];
+                  
+                  if (translateX.includes('%')) {
+                    const percentX = parseFloat(translateX);
+                    actualImgLeftPx += (ticketWrapRect.width * percentX / 100);
+                  } else {
+                    actualImgLeftPx += parseFloat(translateX) || 0;
+                  }
+                  
+                  if (translateY.includes('%')) {
+                    const percentY = parseFloat(translateY);
+                    actualImgTopPx += (ticketWrapRect.height * percentY / 100);
+                  } else {
+                    actualImgTopPx += parseFloat(translateY) || 0;
+                  }
+                }
+              }
+              
+              // right_circle 기준으로 상대 위치 계산
+              const relativeLeftPx = actualImgLeftPx - rightCircleInTicketWrapLeft;
+              const relativeTopPx = actualImgTopPx - rightCircleInTicketWrapTop;
+              
+              // 이미지를 blob URL로 변환하여 CORS 문제 해결
+              let imgBlobURL = img.src;
+              try {
+                // 이미지를 canvas로 그려서 blob으로 변환
+                const imgCanvas = document.createElement('canvas');
+                imgCanvas.width = img.naturalWidth || img.width;
+                imgCanvas.height = img.naturalHeight || img.height;
+                const imgCtx = imgCanvas.getContext('2d');
+                imgCtx.drawImage(img, 0, 0);
+                
+                // blob URL로 변환 (비동기 Promise로 처리)
+                imgBlobURL = await new Promise((resolve, reject) => {
+                  imgCanvas.toBlob((blob) => {
+                    if (blob) {
+                      resolve(URL.createObjectURL(blob));
+                    } else {
+                      reject(new Error('toBlob 실패'));
+                    }
+                  }, 'image/png');
+                });
+              } catch (blobError) {
+                console.warn(`⚠️ 이미지 blob 변환 실패, 원본 사용: ${img.src}`, blobError);
+                // blob 변환 실패 시 원본 사용
+                imgBlobURL = img.src;
+              }
+              
+              // 이미지 클론 생성
+              const imgClone = document.createElement('img');
+              imgClone.src = imgBlobURL;
+              imgClone.alt = img.alt || '';
+              
+              // 스타일 복사 (정확한 위치 유지)
+              imgClone.style.position = 'absolute';
+              imgClone.style.left = `${relativeLeftPx}px`;
+              imgClone.style.top = `${relativeTopPx}px`;
+              imgClone.style.width = imgStyleWidth;
+              imgClone.style.height = imgStyleHeight;
+              imgClone.style.transform = imgStyleTransform;
+              
+              // 다른 스타일도 복사
+              if (img.style.zIndex) imgClone.style.zIndex = img.style.zIndex;
+              if (img.style.opacity) imgClone.style.opacity = img.style.opacity;
+              
+              // 이미지 로드 대기
+              await new Promise((resolve) => {
+                if (imgClone.complete && imgClone.naturalWidth > 0) {
+                  resolve();
+                } else {
+                  imgClone.onload = () => {
+                    console.log(`  ✅ 이미지 로드 완료: ${img.src}`);
+                    resolve();
+                  };
+                  imgClone.onerror = () => {
+                    console.warn(`  ⚠️ 이미지 로드 실패: ${img.src}`);
+                    resolve(); // 에러가 나도 진행
+                  };
+                }
+              });
+              
+              tempContainer.appendChild(imgClone);
+              copiedImageCount++;
+              console.log(`✅ 그래픽 ${copiedImageCount} 복사 완료 (위치: ${relativeLeftPx.toFixed(1)}px, ${relativeTopPx.toFixed(1)}px): ${img.alt || img.src}`);
+            }
+          }
+          
+          console.log(`📊 총 ${copiedImageCount}개의 그래픽이 임시 컨테이너에 복사됨`);
+          
+          if (copiedImageCount === 0) {
+            console.warn('⚠️ 복사된 그래픽이 없습니다! draggableImages가 right_circle와 겹치지 않는 것 같습니다.');
+          }
+          
+          document.body.appendChild(tempContainer);
+          
+          // 디버깅: tempContainer의 자식 요소 확인
+          const containerChildren = tempContainer.children;
+          console.log(`📦 tempContainer 자식 요소 개수: ${containerChildren.length}`);
+          for (let i = 0; i < containerChildren.length; i++) {
+            const child = containerChildren[i];
+            console.log(`  ${i + 1}. ${child.tagName} - src: ${child.src || 'N/A'}, style: ${child.style.cssText}`);
+          }
+          
+          // 이미지들이 모두 로드될 때까지 대기 (더 긴 대기 시간)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // 모든 이미지가 실제로 로드되었는지 확인
+          const allImages = tempContainer.querySelectorAll('img');
+          let loadedCount = 0;
+          for (const img of allImages) {
+            if (img.complete && img.naturalWidth > 0) {
+              loadedCount++;
+              console.log(`  ✅ 이미지 로드 확인: ${img.src} (${img.naturalWidth}x${img.naturalHeight})`);
+            } else {
+              console.warn(`  ⚠️ 이미지 로드 안됨: ${img.src}`);
+            }
+          }
+          console.log(`📊 이미지 로드 상태: ${loadedCount}/${allImages.length}개 로드됨`);
+          
+          // html2canvas로 right_circle만 캡처 (투명 배경)
+          console.log('📸 html2canvas 캡처 시작...');
+          
+          // 이미지들의 CORS 설정 확인 및 crossOrigin 설정
+          const allImgs = tempContainer.querySelectorAll('img');
+          allImgs.forEach(img => {
+            if (!img.crossOrigin) {
+              img.crossOrigin = 'anonymous';
+              // crossOrigin을 설정했으므로 이미지를 다시 로드해야 함
+              const src = img.src;
+              img.src = '';
+              img.src = src;
+            }
+          });
+          
+          // 이미지 재로드 대기
+          await new Promise(resolve => {
+            let loadedCount = 0;
+            const totalImgs = allImgs.length;
+            if (totalImgs === 0) {
+              resolve();
+              return;
+            }
+            allImgs.forEach(img => {
+              if (img.complete) {
+                loadedCount++;
+                if (loadedCount === totalImgs) resolve();
+              } else {
+                img.onload = img.onerror = () => {
+                  loadedCount++;
+                  if (loadedCount === totalImgs) resolve();
+                };
+              }
+            });
+          });
+          
+          const canvas = await html2canvas(tempContainer, {
+            useCORS: true,
+            allowTaint: false, // blob URL 사용하므로 false로 유지 (투명 배경 유지)
+            backgroundColor: null, // 투명 배경
+            scale: 2, // 고해상도 캡처
+            logging: true, // 디버깅을 위해 로깅 활성화
+            width: rightCircleRect.width,
+            height: rightCircleRect.height,
+            onclone: (clonedDoc) => {
+              // 클론된 문서에서 이미지 확인
+              const clonedContainer = clonedDoc.querySelector(`[style*="left: -9999px"]`);
+              if (clonedContainer) {
+                const clonedImages = clonedContainer.querySelectorAll('img');
+                console.log(`📋 클론된 컨테이너의 이미지 개수: ${clonedImages.length}`);
+              }
+            }
+          });
+          
+          console.log(`📸 캡처 완료 - 캔버스 크기: ${canvas.width}x${canvas.height}`);
+          
+          // 임시 컨테이너 즉시 제거 (결과 페이지에는 영향 없음)
+          document.body.removeChild(tempContainer);
+          
+          // 이미지 데이터 URL로 변환 (투명 배경 유지)
+          // allowTaint가 true여도 CORS 설정된 이미지는 toDataURL 가능
+          try {
+            rightCircleImageDataURL = canvas.toDataURL('image/png');
+          } catch (dataURLError) {
+            // toDataURL이 실패하면 toBlob 사용
+            console.warn('⚠️ toDataURL 실패, toBlob으로 대체:', dataURLError);
+            rightCircleImageDataURL = await new Promise((resolve, reject) => {
+              canvas.toBlob((blob) => {
+                if (!blob) {
+                  reject(new Error('toBlob 실패'));
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              }, 'image/png');
+            });
+          }
+          console.log(`✅ right_circle 영역 캡쳐 완료 (투명 배경, right_circle와 그래픽만, 결과 페이지 변경 없음)`);
+          console.log(`📊 캡쳐된 이미지 데이터 크기: ${(rightCircleImageDataURL.length / 1024).toFixed(2)}KB`);
+          }
+        } catch (fallbackError) {
+          console.error('❌ fallback 캡쳐 방식도 실패:', fallbackError);
+          // 캡쳐 실패해도 진행
+        }
+        */
+      }
+    } else if (!rightCircle) {
+      console.warn('⚠️ rightCircle 요소를 찾을 수 없습니다.');
+    } else if (!ticketContent) {
+      console.warn('⚠️ ticketContent 요소를 찾을 수 없습니다.');
+    } else {
+      console.warn('⚠️ html2canvas 라이브러리를 사용할 수 없습니다.');
+    }
+    
+    // 아카이브에 저장
+    let archive = [];
+    try { 
+      archive = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); 
+    } catch(e){ 
+      archive = []; 
+    }
+    
+    const entry = { 
+      id: `ticket_${Date.now()}`, 
+      timestamp: Date.now(),
+      imagePositions: imagePositions, // 하위 호환성을 위해 유지
+      selections: selections || {},
+      // right_circle 영역을 캡쳐한 이미지 데이터 URL 저장
+      rightCircleImage: rightCircleImageDataURL
+    };
+    
+    archive.push(entry);
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+    
+    console.log('✅ 아카이브에 저장 완료:', entry.id);
+    
+    // 버튼 숨기기
+    btnUseTicket.style.display = 'none';
+    btnReset.style.display = 'none';
+    
+    // 헤더만 숨기기 (서브 텍스트는 새로운 것으로 교체)
+    const titleBox = document.querySelector('.title-box');
+    const resultSub = document.querySelector('.result-sub');
+    if (titleBox) {
+      titleBox.style.display = 'none';
+    }
+    // 기존 서브 텍스트는 숨기기 (새로운 서브 텍스트로 교체)
+    if (resultSub) {
+      resultSub.style.display = 'none';
+    }
+    
+    // 팝업 표시
+    const popup = document.createElement('div');
+    popup.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(51, 110, 116, 0.7);
+      color: #EBFEB3;
+      padding: 2vw 4vw;
+      border-radius: 1.5vw;
+      border: 2px solid #F5FCD9;
+      font-size: clamp(2vw, 3.5vmin, 3vw);
+      font-weight: 700;
+      z-index: 3000;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    `;
+    popup.textContent = '티켓이 발급되었습니다.';
+    document.body.appendChild(popup);
+    
+    // 페이드인
+    setTimeout(() => {
+      popup.style.opacity = '1';
+    }, 100);
+    
+    // 2초 후 페이드아웃
+    setTimeout(() => {
+      popup.style.opacity = '0';
+      setTimeout(() => {
+        popup.remove();
+      }, 500);
+    }, 2000);
+    
+    // 서브 텍스트 표시 (계속 표시 - 즉시 표시)
+    // 기존에 같은 ID가 있으면 제거
+    const existingSubText = document.getElementById('resultSubText');
+    if (existingSubText) {
+      existingSubText.remove();
+    }
+    
+    const subText = document.createElement('p');
+    subText.textContent = '당신의 선택으로 이루어진 포르타토 공연은 옆의 아카이브 페이지에 기록되었습니다.';
+    subText.id = 'resultSubText';
+    subText.style.cssText = `
+      position: fixed;
+      top: 8vh;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(235, 254, 179, 0.9);
+      font-size: clamp(1.2vw, 2vmin, 1.8vw);
+      text-align: center;
+      z-index: 3000;
+      padding: 1.5vw 3vw;
+      width: auto;
+      max-width: 80vw;
+      font-weight: 400;
+      pointer-events: none;
+      background: rgba(60, 108, 113, 0.3);
+      border-radius: 1.5vw;
+      box-sizing: border-box;
+    `;
+    document.body.appendChild(subText);
+    console.log('✅ 서브 텍스트 추가됨:', subText);
+    
+    // 티켓 위치 조정 (서브 텍스트 아래로 내리기)
+    const ticketWrapEl = document.getElementById('ticketWrap');
+    const mainApp = document.querySelector('.app');
+    if (ticketWrapEl && mainApp) {
+      // main.app의 padding-top을 증가시켜서 티켓이 서브 텍스트 아래로 내려가도록
+      mainApp.style.paddingTop = '15vh';
+      mainApp.style.transition = 'padding-top 0.3s ease';
+      // 티켓 추가 여백
+      ticketWrapEl.style.marginTop = '4vh';
+      ticketWrapEl.style.transition = 'margin-top 0.3s ease';
+    }
+    
+    // 백그라운드 이미지 변경
+    const bgLayer = document.getElementById('bgLayer');
+    if (bgLayer) {
+      bgLayer.style.backgroundImage = 'url("result/background_get.png")';
+    }
+    const bgDiv = document.querySelector('.bg');
+    if (bgDiv) {
+      bgDiv.style.backgroundImage = 'url("result/background_get.png")';
+    }
+    
+    // 아카이브 페이지 가기 버튼 추가
+    const archiveBtn = document.createElement('a');
+    archiveBtn.href = 'archive.html';
+    archiveBtn.textContent = '아카이브 보기';
+    archiveBtn.style.cssText = `
+      position: fixed;
+      bottom: 8vh;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(60, 108, 113, 0.6);
+      color: rgba(235, 254, 179, 0.9);
+      padding: 1vw 2vw;
+      border-radius: 1vw;
+      border: 1px solid rgba(245, 252, 217, 0.5);
+      font-size: clamp(1vw, 1.8vmin, 1.5vw);
+      text-decoration: none;
+      z-index: 2000;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+    `;
+    archiveBtn.onmouseover = () => {
+      archiveBtn.style.background = 'rgba(60, 108, 113, 0.8)';
+      archiveBtn.style.transform = 'translateX(-50%) translateY(-2px)';
+    };
+    archiveBtn.onmouseout = () => {
+      archiveBtn.style.background = 'rgba(60, 108, 113, 0.6)';
+      archiveBtn.style.transform = 'translateX(-50%) translateY(0)';
+    };
+    document.body.appendChild(archiveBtn);
+    
+  } catch(err){
+    console.error('❌ 티켓 저장 오류:', err);
+    alert('티켓 저장에 실패했습니다. 콘솔을 확인하세요.');
+    btnUseTicket.disabled = false;
+    btnUseTicket.style.opacity = '1';
+  }
+});
+
+if (btnDownload) {
+  btnDownload.addEventListener('click', async ()=>{
+    try {
+      btnDownload.disabled = true;
+      const dataURL = await composeTicketDataURL();
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = `portato_ticket_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      btnDownload.disabled = false;
+    } catch(e){
+      console.error(e);
+      alert('다운로드 실패');
+      btnDownload.disabled = false;
+    }
+  });
+}
+
+function showQRForDataURL(dataURL){
+  // use Google Chart API to render QR of the dataURL (note: dataURL can be long; using it directly may exceed length limits for very large images)
+  // better approach: store dataURL in archive and generate QR to a short URL — but here we encode the dataURI (may be long). We'll encode only a short JSON pointer if needed.
+  // We'll create a small object URL by saving dataURL in localStorage under a unique key and create a QR that references a tiny "viewer" page with that key as param.
+  const key = `portato_ticket_temp_${Date.now()}`;
+  try { localStorage.setItem(key, dataURL); } catch(e){ /* storage may be full */ }
+  // viewer.html?key=... is not implemented here; instead we'll encode a small viewer token using location origin + current path + '#ticket:' + key
+  const ticketPointer = `${location.origin}${location.pathname}#${key}`;
+  // Google Charts QR URL (size 160x160)
+  const qrSrc = `https://chart.googleapis.com/chart?cht=qr&chs=240x240&chl=${encodeURIComponent(ticketPointer)}`;
+  qrImg.src = qrSrc;
+  qrArea.style.display = 'flex';
+}
+
+/* main init */
+(async function init(){
+  try {
+    console.log('=== result.html 초기화 시작 ===');
+    console.log('ticketContent 요소:', ticketContent);
+    console.log('selections 객체:', selections);
+    
+    // 장소에 따른 배경 이미지 설정
+    if (selections.place && forestImgEl) {
+      const backgroundImage = PLACE_BACKGROUNDS[selections.place] || PLACE_BACKGROUNDS['forest'];
+      forestImgEl.src = backgroundImage;
+      console.log('🎨 배경 이미지 설정:', backgroundImage);
+    }
+    
+    // glow 원 초기 크기 설정 (이미지 로드 전에도 초기 크기 표시)
+    if (rightCircleGlowEl) {
+      setTimeout(() => {
+        updateRightCircleGlowSize();
+      }, 100);
+    }
+    
+    // 로딩 시작
+    console.log('🚀 로딩 화면 시작');
+    showLoading();
+    console.log('📊 진행률 시뮬레이션 시작');
+    simulateLoadingProgress(10, 300);
+    
+  // build preview UI from selections - 주석 처리 (init 함수에서 직접 이미지 생성함)
+    // console.log('buildPreview() 함수 호출 시작');
+    // const loaded = await buildPreview();
+    // console.log('buildPreview() 함수 완료, 결과:', loaded);
+    
+    // 로딩 진행: 60% → 90%
+    simulateLoadingProgress(90, 500);
+    
+    // fallback 메시지 비활성화 (이미지 표시를 위해)
+  console.log('fallback 메시지 비활성화 - 이미지 표시 우선');
+  
+  // 사용자 선택 데이터 확인 및 로그
+  console.log('=== 사용자 선택 데이터 확인 ===');
+  console.log('전체 selections:', selections);
+  console.log('selections.place:', selections.place);
+  console.log('selections.mood:', selections.mood);
+  console.log('selections.flow:', selections.flow);
+  console.log('selections.extras:', selections.extras);
+  console.log('selections.instruments:', selections.instruments);
+  
+  // 선택된 값들 수집
+  const selectedValues = [];
+  if (selections.place) selectedValues.push(selections.place);
+  if (selections.mood) selectedValues.push(selections.mood);
+  if (selections.flow) selectedValues.push(selections.flow);
+  if (selections.extras) selectedValues.push(selections.extras);
+  if (selections.instruments && Array.isArray(selections.instruments)) {
+    selectedValues.push(...selections.instruments.slice(0, 3));
+  }
+  
+  console.log('최종 선택된 값들:', selectedValues);
+  
+  // ticketContent 요소 존재 확인
+  console.log('=== ticketContent 요소 확인 ===');
+  console.log('ticketContent 요소:', ticketContent);
+  console.log('ticketContent 존재 여부:', !!ticketContent);
+  if (ticketContent) {
+    console.log('ticketContent 현재 innerHTML:', ticketContent.innerHTML);
+    console.log('ticketContent 스타일:', window.getComputedStyle(ticketContent));
+  }
+  
+  // 사용자 선택에 따른 실제 이미지 표시
+  console.log('=== 사용자 선택에 따른 실제 이미지 표시 시작 ===');
+  
+  // ========================================
+  // 📍 티켓 영역 경계 계산 (더 정확한 영역 설정)
+  // ========================================
+  function calculateTicketBoundary() {
+    const ticketLeft = document.querySelector('.ticket-left');
+    const ticketRight = document.querySelector('.ticket-right');
+    
+    if (!ticketLeft || !ticketRight) {
+      console.warn('티켓 영역을 찾을 수 없습니다');
+      return { left: null, right: null };
+    }
+    
+    const leftRect = ticketLeft.getBoundingClientRect();
+    const rightRect = ticketRight.getBoundingClientRect();
+    const containerRect = ticketContent.getBoundingClientRect();
+    
+    // 컨테이너 기준으로 상대적 위치 계산
+    const leftBoundary = {
+      left: (leftRect.left - containerRect.left) / containerRect.width * 100,
+      right: (leftRect.right - containerRect.left) / containerRect.width * 100,
+      top: (leftRect.top - containerRect.top) / containerRect.height * 100,
+      bottom: (leftRect.bottom - containerRect.top) / containerRect.height * 100
+    };
+    
+    const rightBoundary = {
+      left: (rightRect.left - containerRect.left) / containerRect.width * 100,
+      right: (rightRect.right - containerRect.left) / containerRect.width * 100,
+      top: (rightRect.top - containerRect.top) / containerRect.height * 100,
+      bottom: (rightRect.bottom - containerRect.top) / containerRect.height * 100
+    };
+    
+    console.log('🎯 티켓 영역 경계:', { leftBoundary, rightBoundary });
+    return { left: leftBoundary, right: rightBoundary };
+  }
+
+  // ========================================
+  // 📍 개별 이미지 위치 설정 (티켓 기준 %)
+  // ========================================
+  const IMAGE_POSITIONS = {
+    // 왼쪽 이미지들 (매우 넓게 분산 - 4분면 느낌)
+    left: [
+      { x: 8, y: 20 },   // 좌상단 - 더 왼쪽으로
+      { x: 30, y: 20 },  // 우상단 - 더 오른쪽으로
+      { x: 8, y: 50 },   // 좌하단 - 더 아래로
+      { x: 30, y: 50 },  // 우하단 - 더 아래로
+      { x: 19, y: 35 },  // 중앙
+      { x: 35, y: 35 },  // 중앙-우
+      { x: 42, y: 35 }   // 티켓 중앙선 근처
+    ],
+    
+    // 오른쪽 이미지들 (4개 그래픽 위치 유지, 악기 3개 세로축 중앙정렬 + 간격 넓힘)
+    right: [
+      { x: 3, y: 25 },   // 1사분면 (우상단) - 간격 넓힘
+      { x: 17, y: 25 },  // 2사분면 (좌상단) - 간격 넓힘
+      { x: 3, y: 50 },   // 4사분면 (우하단) - 간격 넓힘
+      { x: 17, y: 50 },  // 3사분면 (좌하단) - 간격 넓힘
+      { x: 19, y: 37 },  // 중앙 (ticketright.svg 중심)
+      { x: 8, y: 55 },   // 악기 1 - 세로축 중앙정렬 (y: 55) + 간격 넓힘
+      { x: 12, y: 55 },  // 악기 2 - 세로축 중앙정렬 (y: 55) + 간격 넓힘
+      { x: 16, y: 55 }   // 악기 3 - 세로축 중앙정렬 (y: 55) + 간격 넓힘
+    ]
+  };
+  
+  // 사용자 선택에 따른 텍스트 생성 함수
+  function generateUserText() {
+    const placeLabels = {
+      'lawn': '잔디밭',
+      'forest': '숲속',
+      'valley': '계곡',
+      'sea': '바닷가'
+    };
+    
+    const moodLabels = {
+      'baroque': '정교한 선율',
+      'romantic': '강렬한 감정',
+      'impression': '몽환적 음색',
+      'post': '자유로운 형식'
+    };
+    
+    const flowLabels = {
+      'recline': '편안히 누워',
+      'lounge': '자유롭게 앉아',
+      'settle': '좌석에서 몰입',
+      'wander': '가볍게 돌아다니며'
+    };
+    
+    const extrasLabels = {
+      'dialogue': '연주자와 대화',
+      'refresh': '다과 시간',
+      'play': '음악 플레이존',
+      'fire': '불빛 마당'
+    };
+    
+    // 선택된 값들 가져오기
+    const place = placeLabels[selections.place] || '선택된 장소';
+    const mood = moodLabels[selections.mood] || '선택된 무드';
+    const flow = flowLabels[selections.flow] || '선택된 자세';
+    const extras = extrasLabels[selections.extras] || '선택된 경험';
+    
+    // 악기들 가져오기 및 조사 처리
+    const instruments = selections.instruments || [];
+    
+    // 악기 한글명을 줄임말로 변환
+    function getInstrumentAbbreviation(koreanName) {
+      const abbreviationMap = {
+        '트럼펫': 'Tp.',
+        '트럼본': 'Trb.',
+        '호른': 'Hn.',
+        '클라리넷': 'Cl.',
+        '플룻': 'Fl.',
+        '바이올린': 'Vn.',
+        '비올라': 'Vla.',
+        '첼로': 'Vc.',
+        '콘트라베이스': 'Cb.'
+      };
+      return abbreviationMap[koreanName] || koreanName;
+    }
+    
+    function getKoreanParticle(word) {
+      const lastChar = word[word.length - 1];
+      const hasBatchim = (lastChar.charCodeAt(0) - 0xAC00) % 28 !== 0;
+      return hasBatchim ? '이' : '가';
+    }
+    
+    // 조사 자동 선택 함수들
+    function getEseParticle(word) {
+      const lastChar = word[word.length - 1];
+      const hasBatchim = (lastChar.charCodeAt(0) - 0xAC00) % 28 !== 0;
+      return hasBatchim ? '에서' : '에서'; // '에서'는 받침 유무와 관계없이 동일
+    }
+    
+    function getEulParticle(word) {
+      const lastChar = word[word.length - 1];
+      const hasBatchim = (lastChar.charCodeAt(0) - 0xAC00) % 28 !== 0;
+      return hasBatchim ? '을' : '를';
+    }
+    
+    function getRoParticle(word) {
+      const lastChar = word[word.length - 1];
+      const hasBatchim = (lastChar.charCodeAt(0) - 0xAC00) % 28 !== 0;
+      return hasBatchim ? '로' : '으로';
+    }
+    
+    let instrumentText;
+    let particle;
+    
+    if (instruments.length > 0) {
+      if (instruments.length === 1) {
+        // 악기가 하나일 때 - 줄임말로 변환 (조사는 원래 한글명으로 결정)
+        instrumentText = getInstrumentAbbreviation(instruments[0]);
+        particle = getKoreanParticle(instruments[0]); // 조사는 한글명으로 결정
+      } else {
+        // 악기가 여러 개일 때는 마지막 악기에만 조사 적용 - 줄임말로 변환
+        const lastInstrument = instruments[instruments.length - 1];
+        const otherInstruments = instruments.slice(0, -1);
+        particle = getKoreanParticle(lastInstrument); // 조사는 한글명으로 결정
+        // 모든 악기를 줄임말로 변환
+        instrumentText = otherInstruments.map(inst => getInstrumentAbbreviation(inst)).join(' ') + ' ' + getInstrumentAbbreviation(lastInstrument);
+      }
+    } else {
+      instrumentText = '선택된 악기';
+      particle = '가';
+    }
+    
+    // ========================================
+    // 📍 티켓 정보 텍스트 생성
+    // ========================================
+    function generateTicketInfo() {
+      // 각 사분면 선택의 영어 이니셜 매핑
+      const initialsMap = {
+        // Place
+        'lawn': 'L',
+        'forest': 'F', 
+        'valley': 'V',
+        'sea': 'S',
+        
+        // Mood
+        'baroque': 'B',
+        'romantic': 'R',
+        'impression': 'I', 
+        'post': 'P',
+        
+        // Flow
+        'recline': 'R',
+        'lounge': 'L',
+        'settle': 'S',
+        'wander': 'W',
+        
+        // Extras
+        'dialogue': 'D',
+        'refresh': 'R',
+        'play': 'P',
+        'fire': 'F'
+      };
+      
+      // 장소 영어명 매핑
+      const placeEnglishMap = {
+        'lawn': 'Lawn',
+        'forest': 'Forest',
+        'valley': 'Valley', 
+        'sea': 'Sea'
+      };
+      
+      // 무드 영어명 매핑
+      const moodEnglishMap = {
+        'baroque': 'Baroque',
+        'romantic': 'Romanticism',
+        'impression': 'Impressionism',
+        'post': 'Postmodernism'
+      };
+      
+      // 태도 영어명 매핑
+      const flowEnglishMap = {
+        'recline': 'Recline',
+        'lounge': 'Lounge',
+        'settle': 'Settle',
+        'wander': 'Wander'
+      };
+      
+      // 행사 영어명 매핑
+      const extrasEnglishMap = {
+        'dialogue': 'Dialogue',
+        'refresh': 'Refreshment',
+        'play': 'Playground',
+        'fire': 'Fireworks'
+      };
+      
+      // 현재 날짜/시간 생성
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '/');
+      const timeStr = now.toTimeString().slice(0, 5);
+      
+      // 이니셜 조합
+      const initials = [
+        initialsMap[selections.place] || 'X',
+        initialsMap[selections.mood] || 'X', 
+        initialsMap[selections.flow] || 'X',
+        initialsMap[selections.extras] || 'X'
+      ].join('');
+      
+      const placeEnglish = placeEnglishMap[selections.place] || 'Unknown';
+      
+      // Stage 이름 길이 계산 (대략적인 길이)
+      const stageName = `포르타토 ${initials} Stage`;
+      const stageNameLength = stageName.length;
+      
+      // 날짜/시간 길이 계산
+      const dateTimeBase = `${dateStr} — ${timeStr}`;
+      const dateTimeLength = dateTimeBase.length;
+      
+      return {
+        stageName: stageName,
+        dateTime: `${dateStr}&nbsp;&nbsp;&nbsp;—&nbsp;&nbsp;&nbsp;${timeStr}`,
+        location: `In ${placeEnglish}.`
+      };
+    }
+    
+    // ========================================
+    // 📍 텍스트 배치 설정 - 쉽게 수정 가능하도록 정리
+    // ========================================
+    const TEXT_CONFIG = {
+      // 폰트 설정
+      fontFamily: "'Sandoll SuPil', sans-serif", // 전체 텍스트 폰트
+      
+      // 줄간격 설정 (각 줄의 y값 차이 = 줄간격)
+      lineHeight: 5, // 줄 사이 간격 (%)
+      
+      // 시작 위치
+      startX: 20, // 첫 번째 줄 왼쪽 시작 위치 (%)
+      startY: 50, // 첫 번째 줄 top 위치 (%)
+      
+      // 너비 설정
+      maxWidth: 80, // 각 줄의 최대 너비 (%)
+      
+      // 폰트 크기
+      fontSize: 'clamp(1.2vw, 2.2vmin, 1.8vw)',
+      
+      // 각 줄별 위치 (자동 계산 또는 수동 설정 가능)
+      // x값: 줄 시작 위치 (작을수록 왼쪽, 값 차이를 줄이면 시작 위치가 가까워짐)
+      // y값: 줄 top 위치 (작을수록 위, 값 차이를 키우면 줄간격이 넓어짐)
+      lines: [
+        { x: 17, y: 60 },    // 1번째 줄: 장소
+        { x: 20, y: 67 },  // 2번째 줄: 무드 (시작 위치 가깝게, 줄간격 늘림)
+        { x: 17, y: 74 },    // 3번째 줄: 자세
+        { x: 20, y: 81 },  // 4번째 줄: 경험
+        { x: 25, y: 88 }    // 5번째 줄: 악기
+      ]
+    };
+    
+    // 텍스트 스타일 설정
+    const TEXT_STYLES = {
+      // 선택지 텍스트 (장소, 무드, 자세, 경험)
+      selection: {
+        color: '#336E74',        // fill 색상
+        strokeColor: '#EBFEB3',  // stroke 색상 (바깥쪽)
+        strokeWidth: '0.3px',      // stroke 두께 (text-shadow spread에 영향을 줌)
+        fontWeight: '900',       // 폰트 굵기 (더 두껍게 - 최대값)
+        letterSpacing: '0em' // 자간을 줄여서 더 두껍게 보이도록
+      },
+      // 악기 선택지 텍스트
+      instrument: {
+        color: '#AFDEAE',        // fill 색상
+        strokeColor: '#336E74',  // stroke 색상 (바깥쪽)
+        strokeWidth: '0.3px',      // stroke 두께 (text-shadow spread에 영향을 줌)
+        fontWeight: '900',       // 폰트 굵기 (더 두껍게 - 최대값)
+        letterSpacing: '0em' // 자간을 줄여서 더 두껍게 보이도록
+      },
+      // 서술 멘트 (에서, 을, 즐깁니다, 이어갑니다, 함께합니다 등)
+      description: {
+        color: '#2d5a5f',       // fill 색상
+        strokeColor: 'transparent', // stroke 없음
+        strokeWidth: '0px',      // stroke 없음
+        fontWeight: '900'        // 폰트 굵기 (bold)
+      }
+    };
+    
+    // ========================================
+    // 📍 티켓 정보 각 줄별 개별 위치 설정 (티켓 기준 %)
+    // ========================================
+    const TICKET_INFO_LINES = [
+      { x: 70, y: 8, fontSize: 'clamp(0.85vw, 1.5vmin, 1.3vw)' }, // 1번째 줄: Stage 이름 (우상단)
+      { x: 70, y: 12, fontSize: 'clamp(0.85vw, 1.5vmin, 1.3vw)' }  // 2번째 줄: 날짜/시간 (우상단, 줄간격 4%)
+      // 3번째 줄: 장소 삭제됨
+    ];
+    
+    // ========================================
+    // 📍 선택지 결과 영어 텍스트 위치 설정 (티켓 기준 %, 우측 하단)
+    // ========================================
+    const SELECTION_EN_LINES = [
+      { y: 85, fontSize: 'clamp(0.85vw, 1.5vmin, 1.3vw)' }, // 1번째 줄: In 장소
+      { y: 88.2, fontSize: 'clamp(0.85vw, 1.5vmin, 1.3vw)' }, // 2번째 줄: Through 무드 (줄간격 3.2%)
+      { y: 91.4, fontSize: 'clamp(0.85vw, 1.5vmin, 1.3vw)' }, // 3번째 줄: While 태도 (줄간격 3.2%)
+      { y: 94.6, fontSize: 'clamp(0.85vw, 1.5vmin, 1.3vw)' }  // 4번째 줄: With 행사 (줄간격 3.2%)
+    ];
+    
+    // 티켓 정보 생성
+    const ticketInfo = generateTicketInfo();
+    
+    // 선택지 결과 영어 텍스트 생성
+    function generateSelectionEnglish() {
+      const placeEnglishMap = {
+        'lawn': 'Lawn',
+        'forest': 'Forest',
+        'valley': 'Valley', 
+        'sea': 'Sea'
+      };
+      
+      const moodEnglishMap = {
+        'baroque': 'Baroque',
+        'romantic': 'Romanticism',
+        'impression': 'Impressionism',
+        'post': 'Postmodernism'
+      };
+      
+      const flowEnglishMap = {
+        'recline': 'Recline',
+        'lounge': 'Lounge',
+        'settle': 'Settle',
+        'wander': 'Wander'
+      };
+      
+      const extrasEnglishMap = {
+        'dialogue': 'Dialogue',
+        'refresh': 'Refreshment',
+        'play': 'Playground',
+        'fire': 'Fireworks'
+      };
+      
+      return {
+        place: `In ${placeEnglishMap[selections.place] || 'Unknown'}.`,
+        mood: `Through ${moodEnglishMap[selections.mood] || 'Unknown'}.`,
+        flow: `While ${flowEnglishMap[selections.flow] || 'Unknown'}.`,
+        extras: `With ${extrasEnglishMap[selections.extras] || 'Unknown'}.`
+      };
+    }
+    
+    const selectionEnglish = generateSelectionEnglish();
+    
+    // ========================================
+    // 📍 악기 영어명 위치 설정 (티켓 기준 %, 좌측 하단)
+    // 악기가 하나일 때는 아래에, 추가될 때마다 위로 올라가는 형식
+    // ========================================
+    const INSTRUMENT_EN_BASE_Y = 94.6; // 가장 아래 위치
+    const INSTRUMENT_EN_LINE_SPACING = 3.2; // 줄간격 3.2%
+    
+    // 악기 영어명 매핑 및 텍스트 생성
+    function generateInstrumentEnglish() {
+      const instrumentEnglishMap = {
+        '바이올린': 'Violin',
+        '비올라': 'Viola',
+        '첼로': 'Cello',
+        '트럼본': 'Trombone',
+        '트럼펫': 'Trumpet',
+        '호른': 'Horn',
+        '플룻': 'Flute',
+        '클라리넷': 'Clarinet',
+        '콘트라베이스': 'Double Bass'
+      };
+      
+      const instruments = selections.instruments || [];
+      const instrumentTexts = instruments.slice(0, 3).map(instrument => {
+        return instrumentEnglishMap[instrument] || instrument;
+      });
+      
+      return instrumentTexts;
+    }
+    
+    const instrumentEnglishList = generateInstrumentEnglish();
+    
+    // 조사 매핑으로 처리
+    const placeEse = '에서';  // 모든 장소는 '에서' 사용
+    
+    // 무드 조사 매핑
+    const moodEulMap = {
+      '정교한 선율': '을',
+      '강렬한 감정': '을', 
+      '몽환적 음색': '을',
+      '자유로운 형식': '을'
+    };
+    const moodEul = moodEulMap[mood] || '을';
+    
+    // 자세 조사 매핑 (특별 처리)
+    const flowMap = {
+      '편안히 누워': '',
+      '자유롭게 앉아': '',
+      '좌석에서 몰입': '해 ',
+      '가볍게 돌아다니며': ''
+    };
+    const flowSuffix = flowMap[flow] || '';
+    
+    // 경험 조사 매핑
+    const extrasRoMap = {
+      '연주자와 대화': '로',
+      '다과 시간': '으로',
+      '음악 플레이존': '으로',
+      '불빛 마당': '으로'
+    };
+    const extrasRo = extrasRoMap[extras] || '으로';
+    
+    // 텍스트 스타일 헬퍼 함수 - 바깥쪽 스트로크 생성
+    const getTextStrokeStyle = (strokeColor, strokeWidth) => {
+      // text-shadow를 사용하여 텍스트 바깥쪽으로 스트로크 효과 구현
+      // 더 많은 방향과 더 큰 spread로 바깥쪽 스트로크 생성
+      const w = parseFloat(strokeWidth.replace('px', '')) || 1;
+      const spread = Math.max(2, w * 2); // 스트로크가 바깥으로 확장되도록 적절한 값 사용 (절반 정도로 줄임)
+      
+      const shadows = [
+        // 8방향 기본 shadow (더 두껍게)
+        `-${spread}px -${spread}px 0 ${strokeColor}`,
+        `${spread}px -${spread}px 0 ${strokeColor}`,
+        `-${spread}px ${spread}px 0 ${strokeColor}`,
+        `${spread}px ${spread}px 0 ${strokeColor}`,
+        `-${spread}px 0 0 ${strokeColor}`,
+        `${spread}px 0 0 ${strokeColor}`,
+        `0 -${spread}px 0 ${strokeColor}`,
+        `0 ${spread}px 0 ${strokeColor}`,
+        // 중간 거리 shadow (더 부드러운 외곽선)
+        `-${spread * 0.7}px -${spread * 0.7}px 0 ${strokeColor}`,
+        `${spread * 0.7}px -${spread * 0.7}px 0 ${strokeColor}`,
+        `-${spread * 0.7}px ${spread * 0.7}px 0 ${strokeColor}`,
+        `${spread * 0.7}px ${spread * 0.7}px 0 ${strokeColor}`,
+        // 가까운 거리 shadow (내부 채움)
+        `-${spread * 0.5}px -${spread * 0.5}px 0 ${strokeColor}`,
+        `${spread * 0.5}px -${spread * 0.5}px 0 ${strokeColor}`,
+        `-${spread * 0.5}px ${spread * 0.5}px 0 ${strokeColor}`,
+        `${spread * 0.5}px ${spread * 0.5}px 0 ${strokeColor}`,
+        `-${spread * 0.5}px 0 0 ${strokeColor}`,
+        `${spread * 0.5}px 0 0 ${strokeColor}`,
+        `0 -${spread * 0.5}px 0 ${strokeColor}`,
+        `0 ${spread * 0.5}px 0 ${strokeColor}`,
+      ].join(', ');
+      return shadows;
+    };
+    
+    // 각 줄별 텍스트 생성
+    const lines = TEXT_CONFIG.lines;
+    const textHTML = `
+      <!-- 1번째 줄: 장소 선택지 -->
+      <div style="
+        position: absolute;
+        left: ${lines[0].x}%;
+        top: ${lines[0].y}%;
+        font-family: ${TEXT_CONFIG.fontFamily};
+        font-size: ${TEXT_CONFIG.fontSize};
+        color: ${TEXT_STYLES.description.color};
+        font-weight: ${TEXT_STYLES.description.fontWeight};
+        z-index: 150;
+        max-width: ${TEXT_CONFIG.maxWidth}%;
+        line-height: 1.4;
+      ">
+        '<span style="
+          color: ${TEXT_STYLES.selection.color};
+          font-weight: ${TEXT_STYLES.selection.fontWeight};
+          letter-spacing: ${TEXT_STYLES.selection.letterSpacing};
+          text-shadow: ${getTextStrokeStyle(TEXT_STYLES.selection.strokeColor, TEXT_STYLES.selection.strokeWidth)};
+          display: inline-block;
+        ">${place}</span>' ${placeEse},
+      </div>
+      
+      <!-- 2번째 줄: 무드 선택지 -->
+      <div style="
+        position: absolute;
+        left: ${lines[1].x}%;
+        top: ${lines[1].y}%;
+        font-family: ${TEXT_CONFIG.fontFamily};
+        font-size: ${TEXT_CONFIG.fontSize};
+        color: ${TEXT_STYLES.description.color};
+        font-weight: ${TEXT_STYLES.description.fontWeight};
+        z-index: 150;
+        max-width: ${TEXT_CONFIG.maxWidth}%;
+        line-height: 1.4;
+      ">
+        '<span style="
+          color: ${TEXT_STYLES.selection.color};
+          font-weight: ${TEXT_STYLES.selection.fontWeight};
+          letter-spacing: ${TEXT_STYLES.selection.letterSpacing};
+          text-shadow: ${getTextStrokeStyle(TEXT_STYLES.selection.strokeColor, TEXT_STYLES.selection.strokeWidth)};
+          display: inline-block;
+        ">${mood}</span>' ${moodEul},
+      </div>
+      
+      <!-- 3번째 줄: 자세 선택지 -->
+      <div style="
+        position: absolute;
+        left: ${lines[2].x}%;
+        top: ${lines[2].y}%;
+        font-family: ${TEXT_CONFIG.fontFamily};
+        font-size: ${TEXT_CONFIG.fontSize};
+        color: ${TEXT_STYLES.description.color};
+        font-weight: ${TEXT_STYLES.description.fontWeight};
+        z-index: 150;
+        max-width: ${TEXT_CONFIG.maxWidth}%;
+        line-height: 1.4;
+      ">
+        '<span style="
+          color: ${TEXT_STYLES.selection.color};
+          font-weight: ${TEXT_STYLES.selection.fontWeight};
+          letter-spacing: ${TEXT_STYLES.selection.letterSpacing};
+          text-shadow: ${getTextStrokeStyle(TEXT_STYLES.selection.strokeColor, TEXT_STYLES.selection.strokeWidth)};
+          display: inline-block;
+        ">${flow}</span>' ${flowSuffix}즐깁니다.
+      </div>
+      
+      <div style="
+        position: absolute;
+        left: ${lines[3].x}%;
+        top: ${lines[3].y}%;
+        font-family: ${TEXT_CONFIG.fontFamily};
+        font-size: ${TEXT_CONFIG.fontSize};
+        color: ${TEXT_STYLES.description.color};
+        font-weight: ${TEXT_STYLES.description.fontWeight};
+        z-index: 150;
+        max-width: ${TEXT_CONFIG.maxWidth}%;
+        line-height: 1.4;
+      ">
+        '<span style="
+          color: ${TEXT_STYLES.selection.color};
+          font-weight: ${TEXT_STYLES.selection.fontWeight};
+          letter-spacing: ${TEXT_STYLES.selection.letterSpacing};
+          text-shadow: ${getTextStrokeStyle(TEXT_STYLES.selection.strokeColor, TEXT_STYLES.selection.strokeWidth)};
+          display: inline-block;
+        ">${extras}</span>' ${extrasRo} 이어갑니다.
+      </div>
+      
+      <!-- 5번째 줄: 악기 선택지 -->
+      <div style="
+        position: absolute;
+        left: ${lines[4].x}%;
+        top: ${lines[4].y}%;
+        font-family: ${TEXT_CONFIG.fontFamily};
+        font-size: ${TEXT_CONFIG.fontSize};
+        color: ${TEXT_STYLES.description.color};
+        font-weight: ${TEXT_STYLES.description.fontWeight};
+        z-index: 150;
+        max-width: ${TEXT_CONFIG.maxWidth}%;
+        line-height: 1.4;
+      ">
+        <span style="
+          color: ${TEXT_STYLES.instrument.color};
+          font-weight: ${TEXT_STYLES.instrument.fontWeight};
+          letter-spacing: ${TEXT_STYLES.instrument.letterSpacing};
+          text-shadow: ${getTextStrokeStyle(TEXT_STYLES.instrument.strokeColor, TEXT_STYLES.instrument.strokeWidth)};
+          display: inline-block;
+        ">${instrumentText}</span> ${particle} 함께합니다.
+      </div>
+      
+      <!-- 티켓 정보 - 각 줄별 개별 설정 (우상단) -->
+      <div style="
+        position: absolute;
+        right: 15%;
+        top: ${TICKET_INFO_LINES[0].y}%;
+        text-align: right;
+        font-family: var(--font-sub);
+        font-size: ${TICKET_INFO_LINES[0].fontSize};
+        color: #336E74;
+        z-index: 160;
+      ">
+        ${ticketInfo.stageName}
+      </div>
+      
+      <div style="
+        position: absolute;
+        right: 15%;
+        top: ${TICKET_INFO_LINES[1].y}%;
+        text-align: right;
+        font-family: var(--font-sub);
+        font-size: ${TICKET_INFO_LINES[1].fontSize};
+        color: #336E74;
+        z-index: 160;
+      ">
+        ${ticketInfo.dateTime}
+      </div>
+      
+      <!-- 선택지 결과 영어 텍스트 (우측 하단) -->
+      <div style="
+        position: absolute;
+        right: 15%;
+        top: ${SELECTION_EN_LINES[0].y}%;
+        text-align: right;
+        font-family: var(--font-sub);
+        font-size: ${SELECTION_EN_LINES[0].fontSize};
+        color: #336E74;
+        z-index: 160;
+      ">
+        ${selectionEnglish.place}
+      </div>
+      
+      <div style="
+        position: absolute;
+        right: 15%;
+        top: ${SELECTION_EN_LINES[1].y}%;
+        text-align: right;
+        font-family: var(--font-sub);
+        font-size: ${SELECTION_EN_LINES[1].fontSize};
+        color: #336E74;
+        z-index: 160;
+      ">
+        ${selectionEnglish.mood}
+      </div>
+      
+      <div style="
+        position: absolute;
+        right: 15%;
+        top: ${SELECTION_EN_LINES[2].y}%;
+        text-align: right;
+        font-family: var(--font-sub);
+        font-size: ${SELECTION_EN_LINES[2].fontSize};
+        color: #336E74;
+        z-index: 160;
+      ">
+        ${selectionEnglish.flow}
+      </div>
+      
+      <div style="
+        position: absolute;
+        right: 15%;
+        top: ${SELECTION_EN_LINES[3].y}%;
+        text-align: right;
+        font-family: var(--font-sub);
+        font-size: ${SELECTION_EN_LINES[3].fontSize};
+        color: #336E74;
+        z-index: 160;
+      ">
+        ${selectionEnglish.extras}
+      </div>
+      
+      <!-- 악기 영어명 텍스트 (좌측 하단, 악기별 줄넘김) -->
+      ${instrumentEnglishList.length > 0 ? instrumentEnglishList.map((instrument, index) => {
+        // 악기가 하나일 때는 아래에, 추가될 때마다 위로 올라가는 형식
+        // 역순으로 처리: 마지막 악기가 가장 아래에
+        const reversedIndex = instrumentEnglishList.length - 1 - index;
+        const yPos = INSTRUMENT_EN_BASE_Y - (reversedIndex * INSTRUMENT_EN_LINE_SPACING);
+        
+        return '<div style="position: absolute; left: 60%; top: ' + yPos + '%; text-align: left; font-family: var(--font-sub); font-size: clamp(0.85vw, 1.5vmin, 1.3vw); color: #336E74; z-index: 160;">' + instrument + '</div>';
+      }).join('') : ''}
+    `;
+    
+    return textHTML;
+  }
+  
+  // 🎯 사용자 선택 이미지를 사분면 배치로 배치하는 함수 (right_circle 크기에 비례)
+  function autoArrangeImagesWithPixelAccuracy(draggableImages, ticketContent) {
+    console.log('🔄 사분면 배치 시작 (right_circle 크기에 비례하여 배치)');
+    
+    const ticketContentRect = ticketContent.getBoundingClientRect();
+    const rightCircleEl = document.getElementById('rightCircle');
+    
+    if (!rightCircleEl) {
+      console.error('❌ rightCircle 요소를 찾을 수 없습니다!');
+      return;
+    }
+    
+    // right_circle의 실제 크기와 위치 가져오기
+    const rightCircleRect = rightCircleEl.getBoundingClientRect();
+    const circleWidth = rightCircleRect.width;
+    const circleHeight = rightCircleRect.height;
+    
+    // right_circle의 위치 (ticketContent 기준 - 정확한 계산)
+    const circleLeft = rightCircleRect.left - ticketContentRect.left;
+    const circleTop = rightCircleRect.top - ticketContentRect.top;
+    const circleRight = circleLeft + circleWidth;
+    const circleBottom = circleTop + circleHeight;
+    
+    // right_circle 중심
+    const circleCenterX = circleLeft + circleWidth / 2;
+    const circleCenterY = circleTop + circleHeight / 2;
+    
+    console.log(`📐 right_circle 정보:`);
+    console.log(`  - 절대 위치 (화면 기준): left=${rightCircleRect.left.toFixed(1)}px, top=${rightCircleRect.top.toFixed(1)}px`);
+    console.log(`  - ticketContent 기준: left=${circleLeft.toFixed(1)}px, top=${circleTop.toFixed(1)}px`);
+    console.log(`  - 크기: ${circleWidth.toFixed(1)}px × ${circleHeight.toFixed(1)}px`);
+    console.log(`  - 경계: left=${circleLeft.toFixed(1)}, right=${circleRight.toFixed(1)}, top=${circleTop.toFixed(1)}, bottom=${circleBottom.toFixed(1)}`);
+    console.log(`  - 중심: (${circleCenterX.toFixed(1)}, ${circleCenterY.toFixed(1)})`);
+    
+    // right_circle 내부 여백 (그래픽이 경계에 닿지 않도록 - 더 크게)
+    const padding = Math.min(circleWidth, circleHeight) * 0.20; // 20% 여백으로 증가
+    
+    // 실제 사용 가능한 영역 계산
+    const usableLeft = circleLeft + padding;
+    const usableRight = circleRight - padding;
+    const usableTop = circleTop + padding;
+    const usableBottom = circleBottom - padding;
+    const usableWidth = usableRight - usableLeft;
+    const usableHeight = usableBottom - usableTop;
+    
+    console.log(`📐 사용 가능한 영역: ${usableWidth.toFixed(1)}px × ${usableHeight.toFixed(1)}px`);
+    
+    // 악기 그래픽과 일반 그래픽 분리
+    const instrumentImages = [];
+    const regularImages = [];
+    
+    draggableImages.forEach((img) => {
+      const imgSrc = img.src || '';
+      const imgAlt = img.alt || '';
+      // 악기 그래픽은 instruments 폴더에 있거나 한글 악기명이 alt에 있는 경우
+      if (imgSrc.includes('/instruments/') || /(바이올린|비올라|첼로|트럼본|트럼펫|호른|플룻|클라리넷|콘트라베이스)/.test(imgAlt)) {
+        instrumentImages.push(img);
+      } else {
+        regularImages.push(img);
+      }
+    });
+    
+    console.log(`📦 악기 그래픽: ${instrumentImages.length}개, 일반 그래픽: ${regularImages.length}개`);
+    
+    // 일반 그래픽은 사분면 배치
+    const usableCenterX = usableLeft + usableWidth / 2;
+    const usableCenterY = usableTop + usableHeight / 2;
+    
+    const quadrantPositions = [
+      { // NE (우상단) - 중심 기준 우상단 (위로 올림)
+        x: usableCenterX + usableWidth * 0.68,  // 중심에서 오른쪽으로 68%
+        y: usableCenterY - usableHeight * 0.55  // 중심에서 위로 55% (65% → 55%, 더 위로 올림)
+      },
+      { // NW (좌상단) - 중심 기준 좌상단 (위로 올림)
+        x: usableCenterX - usableWidth * 0.68,  // 중심에서 왼쪽으로 68%
+        y: usableCenterY - usableHeight * 0.55  // 중심에서 위로 55% (65% → 55%, 더 위로 올림)
+      },
+      { // SE (우하단) - 중심 기준 우하단 (위로 올림, 하지만 악기보다는 위)
+        x: usableCenterX + usableWidth * 0.68,  // 중심에서 오른쪽으로 68%
+        y: usableCenterY + usableHeight * 0.30  // 중심에서 아래로 30% (40% → 30%, 더 위로 올림)
+      },
+      { // SW (좌하단) - 중심 기준 좌하단 (위로 올림, 하지만 악기보다는 위)
+        x: usableCenterX - usableWidth * 0.68,  // 중심에서 왼쪽으로 68%
+        y: usableCenterY + usableHeight * 0.30  // 중심에서 아래로 30% (40% → 30%, 더 위로 올림)
+      }
+    ];
+    
+    // 악기 그래픽은 일렬 배치 (일반 그래픽 하단보다 아래) - 더 내려서 일반 그래픽 하단과 명확히 구분
+    const baseY = circleCenterY + circleHeight * 0.25; // 중심에서 아래로 25% 위치 (일반 그래픽 하단 30%보다 아래)
+    const numInstrumentImages = instrumentImages.length;
+    const horizontalSpacing = numInstrumentImages > 0 ? usableWidth / (numInstrumentImages + 1) : 0;
+    
+    console.log('📐 사분면 위치 (픽셀 단위, 중심 기준):');
+    console.log(`  사용 가능한 영역 중심: (${usableCenterX.toFixed(1)}, ${usableCenterY.toFixed(1)})`);
+    quadrantPositions.forEach((pos, idx) => {
+      const names = ['NE', 'NW', 'SE', 'SW'];
+      const isWithinX = pos.x >= usableLeft && pos.x <= usableRight;
+      const isWithinY = pos.y >= usableTop && pos.y <= usableBottom;
+      console.log(`  ${names[idx]}: x=${pos.x.toFixed(1)}px, y=${pos.y.toFixed(1)}px`);
+      console.log(`    → right_circle 내부 확인: ${isWithinX && isWithinY ? '✅' : '❌'} (x: ${isWithinX}, y: ${isWithinY})`);
+    });
+    
+    if (numInstrumentImages > 0) {
+      console.log('📐 악기 일렬 배치 위치 (일반 그래픽 하단보다 아래):');
+      console.log(`  기본 Y 위치: ${baseY.toFixed(1)}px (원형 중심에서 아래로 ${(baseY - circleCenterY).toFixed(1)}px)`);
+      console.log(`  가로 간격: ${horizontalSpacing.toFixed(1)}px`);
+    }
+    
+    // right_circle 크기에 비례한 최대 이미지 크기 계산 (써클 크기에 비례)
+    // 써클 크기의 일정 비율로 제한 (그래픽 크기 50% 보장을 위해 충분한 여유)
+    const circleReferenceSize = Math.min(circleWidth, circleHeight);
+    const maxImageSize = circleReferenceSize * 0.65; // 써클 크기의 65%로 제한 (크기 보장)
+    
+    console.log(`📐 최대 이미지 크기: ${maxImageSize.toFixed(1)}px`);
+    
+    // 일반 그래픽 사분면 배치
+    regularImages.forEach((img, index) => {
+      console.log(`📦 ${index + 1}번째 이미지 처리:`, img.src.split('/').pop());
+      
+      // 이미지가 완전히 로드될 때까지 기다린 후 크기 확인
+      const updateImagePosition = () => {
+        // 드래그 중일 때는 위치 재설정하지 않음
+        if (img.dataset.isDragging === 'true') {
+          console.log('⏭️ 드래그 중 - 위치 재설정 건너뜀');
+          return;
+        }
+        
+        // 초기 위치가 이미 설정되었고, 사용자가 직접 드래그한 경우 위치 재설정하지 않음
+        if (img.dataset.initialPositionSet === 'true' && img.dataset.userMoved === 'true') {
+          console.log('⏭️ 사용자가 직접 이동시킨 이미지 - 위치 재설정 건너뜀');
+          return;
+        }
+        // 사분면 위치 결정 (최대 4개까지, 그 이후는 순환)
+        const quadrantIndex = index % 4;
+        const pos = quadrantPositions[quadrantIndex];
+        
+        // 원본 이미지 크기
+        const originalWidth = img.naturalWidth;
+        const originalHeight = img.naturalHeight;
+        const aspectRatio = originalHeight / originalWidth;
+        
+        // right_circle 크기에 비례한 크기 계산 (써클 크기에 비례하여 자동 조정)
+        // right_circle의 작은 변(너비 또는 높이)을 기준으로 비율 계산
+        const circleReferenceSize = Math.min(circleWidth, circleHeight);
+        
+        // baseScale을 써클 크기에 비례하도록 계산
+        const baseScale = img.dataset.scale ? parseFloat(img.dataset.scale) : 0.5;
+        // 써클 크기의 일정 비율을 차지하도록 설정 (일반 그래픽 크기 조정, 간격 유지)
+        const targetSizeRatio = circleReferenceSize * 0.45; // 써클 크기의 45%를 차지 (간격 확보)
+        const targetSize = targetSizeRatio;
+        
+        // 원본 이미지 비율 유지하면서 targetSize에 맞추기
+        let targetWidth, targetHeight;
+        if (originalWidth > originalHeight) {
+          // 가로가 더 긴 경우
+          targetWidth = targetSize;
+          targetHeight = targetSize * aspectRatio;
+        } else {
+          // 세로가 더 긴 경우
+          targetHeight = targetSize;
+          targetWidth = targetSize / aspectRatio;
+        }
+        
+        // 최대 크기 제한 (절대적인 제한)
+        if (targetWidth > maxImageSize || targetHeight > maxImageSize) {
+          const scaleByWidth = maxImageSize / targetWidth;
+          const scaleByHeight = maxImageSize / targetHeight;
+          const finalScale = Math.min(scaleByWidth, scaleByHeight);
+          targetWidth *= finalScale;
+          targetHeight *= finalScale;
+        }
+        
+        // 반드시 사용 가능한 영역 내에 들어가도록 추가 검증
+        const halfWidth = targetWidth / 2;
+        const halfHeight = targetHeight / 2;
+        
+        // 최종 검증: 써클 크기 기준으로 계산한 크기를 우선하되, 써클 경계를 넘지 않도록만 체크
+        // 써클의 실제 크기(원형 경계 고려)로 최대 크기 확인 (그래픽 크기 50% 보장 + 간격 확보)
+        // 50% 크기의 대각선 = 50% * sqrt(2) ≈ 0.707, 따라서 충분한 여유 필요
+        const maxSizeByCircle = circleReferenceSize * 0.85; // 써클 크기의 85%까지만 허용 (크기 제한 완화)
+        const maxDiagonal = Math.sqrt(targetWidth ** 2 + targetHeight ** 2);
+        if (maxDiagonal > maxSizeByCircle) {
+          const scale = maxSizeByCircle / maxDiagonal;
+          targetWidth *= scale;
+          targetHeight *= scale;
+        }
+        
+        // 경계 체크: 원형 경계를 기준으로 체크 (사각형 경계 제한 완화)
+        // 사분면 위치를 최우선으로 유지하고, 원형 경계만 체크
+        let finalX = pos.x;
+        let finalY = pos.y;
+        
+        // 원형 경계 체크: 이미지의 가장 바깥쪽 점이 원을 넘는지 체크 (간격 확보를 위해 완화)
+        const distanceFromCenter = Math.sqrt((finalX - circleCenterX) ** 2 + (finalY - circleCenterY) ** 2);
+        const circleRadius = Math.min(circleWidth, circleHeight) / 2; // 써클의 실제 반지름
+        const imageHalfDiagonal = Math.sqrt(halfWidth ** 2 + halfHeight ** 2); // 이미지 중심에서 가장 먼 점까지의 거리
+        
+        // 간격을 최대한 유지하기 위해 경계 체크 대폭 완화
+        // quadrantPositions에서 설정한 간격을 절대적으로 우선
+        const safetyMargin = 0; // 안전 마진 제거 (간격 최대화)
+        const maxAllowedDistance = circleRadius - imageHalfDiagonal - safetyMargin;
+        
+        // desiredDistance는 quadrantPositions에서 설정한 위치의 중심 거리
+        const desiredDistance = Math.sqrt((pos.x - circleCenterX) ** 2 + (pos.y - circleCenterY) ** 2);
+        
+        // 원형 경계를 넘는 경우에만 최소한으로 조정 (간격 최대한 유지)
+        // 간격을 우선하므로 더 관대하게 체크
+        if (distanceFromCenter + imageHalfDiagonal > circleRadius - 5) { // 5px 안전 여백
+          // 원형 경계를 약간 넘어도 허용하되, 너무 많이 넘으면 조정
+          const angle = Math.atan2(finalY - circleCenterY, finalX - circleCenterX);
+          
+          // 원하는 위치를 최우선으로 하되, 원형 경계를 크게 넘지 않도록만 제한
+          const newDistanceFromCenter = Math.min(desiredDistance, maxAllowedDistance); // 여유 제거
+          
+          // 이미지가 너무 커서 newDistanceFromCenter가 음수가 되는 경우 방지
+          if (newDistanceFromCenter < 0) {
+            finalX = circleCenterX;
+            finalY = circleCenterY;
+          } else {
+            finalX = circleCenterX + Math.cos(angle) * newDistanceFromCenter;
+            finalY = circleCenterY + Math.sin(angle) * newDistanceFromCenter;
+          }
+        }
+        
+        // 최종 경계 검증: 원형 경계만 체크 (사각형 경계 제거로 간격 확보)
+        // 원형 경계 체크는 이미 위에서 수행했으므로, 사각형 경계 체크는 제거
+        // 이렇게 하면 quadrantPositions에서 설정한 58% 간격이 제대로 적용됨
+        const finalLeft = finalX - halfWidth;
+        const finalRight = finalX + halfWidth;
+        const finalTop = finalY - halfHeight;
+        const finalBottom = finalY + halfHeight;
+        
+        // 원형 경계만 최종 확인 (이미 위에서 체크했지만 한 번 더 확인)
+        const finalDistanceFromCenter = Math.sqrt((finalX - circleCenterX) ** 2 + (finalY - circleCenterY) ** 2);
+        const finalImageHalfDiagonal = Math.sqrt(halfWidth ** 2 + halfHeight ** 2);
+        const isWithinCircle = finalDistanceFromCenter + finalImageHalfDiagonal <= circleRadius;
+        
+        if (!isWithinCircle) {
+          console.warn(`⚠️ 원형 경계 체크: 이미지가 원을 약간 넘음. 추가 조정...`);
+          // 원형 경계 내로 최소한만 조정
+          const angle = Math.atan2(finalY - circleCenterY, finalX - circleCenterX);
+          const safeDistance = circleRadius - finalImageHalfDiagonal - 3;
+          if (safeDistance > 0) {
+            finalX = circleCenterX + Math.cos(angle) * safeDistance;
+            finalY = circleCenterY + Math.sin(angle) * safeDistance;
+          }
+        }
+        
+        // 퍼센트로 변환 (finalX, finalY는 이미 ticketContent 기준 상대 좌표)
+        // circleLeft, circleTop 계산 시 이미 ticketContentRect.left/top을 빼서
+        // finalX, finalY는 이미 상대 좌표임
+        let leftPercent = (finalX / ticketContentRect.width) * 100;
+        let topPercent = (finalY / ticketContentRect.height) * 100;
+        
+        console.log(`  📍 최종 위치 계산: finalX=${finalX.toFixed(1)}px, finalY=${finalY.toFixed(1)}px → left=${leftPercent.toFixed(2)}%, top=${topPercent.toFixed(2)}%`);
+        
+        img.style.left = leftPercent + '%';
+        img.style.top = topPercent + '%';
+        img.style.width = targetWidth + 'px';
+        img.style.height = targetHeight + 'px';
+        img.style.transform = 'translate(-50%, -50%)'; // 중심 정렬
+        
+        // 🔑 초기 위치를 data 속성으로 저장 (위치 초기화 기능용)
+        img.dataset.initialLeft = leftPercent + '%';
+        img.dataset.initialTop = topPercent + '%';
+        img.dataset.initialPositionSet = 'true'; // 초기 위치 설정 완료 플래그
+        
+        const quadrantNames = ['NE', 'NW', 'SE', 'SW'];
+        console.log(`  사분면: ${quadrantNames[quadrantIndex]}`);
+        console.log(`  위치: ${leftPercent.toFixed(2)}%, ${topPercent.toFixed(2)}%`);
+        console.log(`  이미지 크기: ${targetWidth.toFixed(1)}px × ${targetHeight.toFixed(1)}px (right_circle 크기 비례)`);
+        console.log(`  경계 체크: ${isWithinCircle ? '✅' : '⚠️'} 원형 경계 내부, 중심 거리=${finalDistanceFromCenter.toFixed(1)}px`);
+        
+        // 최종 배치 후 실제 위치 확인 (이미지가 렌더링된 후)
+        setTimeout(() => {
+          const imgRect = img.getBoundingClientRect();
+          const imgLeft = imgRect.left - ticketContentRect.left;
+          const imgTop = imgRect.top - ticketContentRect.top;
+          const imgRight = imgLeft + imgRect.width;
+          const imgBottom = imgTop + imgRect.height;
+          
+          const actuallyWithinBounds = 
+            imgLeft >= circleLeft && 
+            imgRight <= circleRight && 
+            imgTop >= circleTop && 
+            imgBottom <= circleBottom;
+          
+          if (!actuallyWithinBounds) {
+            console.error(`❌❌❌ 경계 위반! 이미지 ${index + 1}이 실제로 right_circle를 넘습니다!`);
+            console.error(`  right_circle: left=${circleLeft.toFixed(1)}, right=${circleRight.toFixed(1)}, top=${circleTop.toFixed(1)}, bottom=${circleBottom.toFixed(1)}`);
+            console.error(`  이미지 실제 위치: left=${imgLeft.toFixed(1)}, right=${imgRight.toFixed(1)}, top=${imgTop.toFixed(1)}, bottom=${imgBottom.toFixed(1)}`);
+          } else {
+            console.log(`✅ 이미지 ${index + 1}이 right_circle 내부에 정확히 배치됨`);
+          }
+        }, 100);
+        
+        // 드래그 기능 적용
+        makeImageDraggable(img);
+      };
+      
+      // 이미지가 이미 로드되었으면 바로 실행, 아니면 로드 완료 후 실행 (한 번만 실행)
+      let positionUpdated = false;
+      const updateOnce = () => {
+        if (!positionUpdated) {
+          positionUpdated = true;
+          updateImagePosition();
+          // load 이벤트 리스너 제거 (한 번만 실행)
+          img.removeEventListener('load', updateOnce);
+        }
+      };
+      
+      if (img.complete && img.naturalWidth > 0) {
+        updateOnce();
+      } else {
+        img.addEventListener('load', updateOnce, { once: true });
+      }
+    });
+    
+    // 악기 그래픽 일렬 배치 (오른쪽 써클 아래쪽)
+    // 먼저 모든 악기 이미지의 크기를 계산하여 저장 (충돌 체크를 위해)
+    const instrumentSizes = [];
+    instrumentImages.forEach((img, index) => {
+      const originalWidth = img.naturalWidth;
+      const originalHeight = img.naturalHeight;
+      const aspectRatio = originalHeight / originalWidth;
+      const usableReferenceSize = Math.min(usableWidth, usableHeight);
+      
+      // 악기별 크기 조정
+      const imgSrc = img.src || '';
+      const imgAlt = img.alt || '';
+      let instrumentScale = 1.0;
+      
+      if (imgSrc.includes('Cb.svg') || imgSrc.includes('/Cb.') || /콘트라베이스|콘트베이스/.test(imgAlt)) {
+        instrumentScale = 1.15;
+      } else if (imgSrc.includes('Vn.svg') || imgSrc.includes('/Vn.') || /바이올린/.test(imgAlt)) {
+        instrumentScale = 0.70;
+      } else if (imgSrc.includes('Vla.svg') || imgSrc.includes('/Vla.') || /비올라/.test(imgAlt)) {
+        instrumentScale = 0.80;
+      } else if (imgSrc.includes('Tp.svg') || imgSrc.includes('/Tp.') || /트럼펫/.test(imgAlt)) {
+        instrumentScale = 0.75;
+      } else if (imgSrc.includes('Trb.svg') || imgSrc.includes('/Trb.') || /트롬본|트럼본/.test(imgAlt)) {
+        instrumentScale = 0.75;
+      } else if (imgSrc.includes('Hn.svg') || imgSrc.includes('/Hn.') || /호른/.test(imgAlt)) {
+        instrumentScale = 0.75;
+      }
+      
+      const baseScale = img.dataset.scale ? parseFloat(img.dataset.scale) : 0.5;
+      const targetSizeRatio = baseScale * 1.50 * instrumentScale;
+      const targetSize = usableReferenceSize * targetSizeRatio;
+      
+      let targetWidth, targetHeight;
+      if (originalWidth > originalHeight) {
+        targetWidth = targetSize;
+        targetHeight = targetSize * aspectRatio;
+      } else {
+        targetHeight = targetSize;
+        targetWidth = targetSize / aspectRatio;
+      }
+      
+      // 크기 제한 적용 (간단한 버전)
+      if (targetWidth > maxImageSize || targetHeight > maxImageSize) {
+        const scaleByWidth = maxImageSize / targetWidth;
+        const scaleByHeight = maxImageSize / targetHeight;
+        const finalScale = Math.min(scaleByWidth, scaleByHeight);
+        targetWidth *= finalScale;
+        targetHeight *= finalScale;
+      }
+      
+      instrumentSizes.push({ width: targetWidth, height: targetHeight, halfWidth: targetWidth / 2, halfHeight: targetHeight / 2 });
+    });
+    
+    // 모든 악기 이미지의 위치를 먼저 순차적으로 계산 (충돌 체크를 위해)
+    const instrumentPositions = [];
+    let currentX = usableLeft + usableWidth * 0.15; // 초기 X 위치
+    const minSpacingRatio = 0.20; // 최소 간격 비율 (20%)
+    
+    instrumentImages.forEach((img, index) => {
+      const size = instrumentSizes[index];
+      const minSpacing = Math.max(size.width, size.height) * minSpacingRatio;
+      
+      // 이전 이미지가 있으면 간격 확보
+      if (index > 0) {
+        const prevSize = instrumentSizes[index - 1];
+        const prevPos = instrumentPositions[index - 1];
+        const minGap = prevSize.halfWidth + size.halfWidth + minSpacing;
+        currentX = Math.max(currentX, prevPos.x + minGap);
+      }
+      
+      instrumentPositions.push({
+        x: currentX,
+        y: baseY,
+        width: size.width,
+        height: size.height,
+        halfWidth: size.halfWidth,
+        halfHeight: size.halfHeight
+      });
+      
+      console.log(`📐 악기 ${index + 1} 위치 계산: x=${currentX.toFixed(1)}px, 크기=${size.width.toFixed(1)}x${size.height.toFixed(1)}px`);
+      
+      // 다음 이미지를 위한 X 위치 업데이트
+      currentX = currentX + size.width + minSpacing;
+    });
+    
+    // 이제 이미지들을 순차적으로 배치 (계산된 위치 사용)
+    instrumentImages.forEach((img, index) => {
+      console.log(`📦 악기 그래픽 ${index + 1}번째 이미지 처리:`, img.src.split('/').pop());
+      
+      // 이미지가 완전히 로드될 때까지 기다린 후 크기 확인
+      const updateImagePosition = () => {
+        // 드래그 중일 때는 위치 재설정하지 않음
+        if (img.dataset.isDragging === 'true') {
+          console.log('⏭️ 드래그 중 - 위치 재설정 건너뜀');
+          return;
+        }
+        
+        // 초기 위치가 이미 설정되었고, 사용자가 직접 드래그한 경우 위치 재설정하지 않음
+        if (img.dataset.initialPositionSet === 'true' && img.dataset.userMoved === 'true') {
+          console.log('⏭️ 사용자가 직접 이동시킨 이미지 - 위치 재설정 건너뜀');
+          return;
+        }
+        
+        // 일렬 배치 위치 계산 (오른쪽 써클 아래쪽) - 미리 계산된 위치 사용
+        const calculatedPos = instrumentPositions[index];
+        const pos = {
+          x: calculatedPos.x,
+          y: calculatedPos.y
+        };
+        
+        // 원본 이미지 크기
+        const originalWidth = img.naturalWidth;
+        const originalHeight = img.naturalHeight;
+        const aspectRatio = originalHeight / originalWidth;
+        
+        // 사용 가능한 영역을 기준으로 크기 계산
+        const usableReferenceSize = Math.min(usableWidth, usableHeight);
+        
+        // 악기별 크기 조정 (콘트라베이스와 관악기는 더 작게)
+        const imgSrc = img.src || '';
+        const imgAlt = img.alt || '';
+        let instrumentScale = 1.0;
+        
+        // 콘트라베이스는 살짝 크게 (115%)
+        if (imgSrc.includes('Cb.svg') || imgSrc.includes('/Cb.') || /콘트라베이스|콘트베이스/.test(imgAlt)) {
+          instrumentScale = 1.15;
+        }
+        // 바이올린은 작게 (70% 크기), 비올라는 약간 작게 (80% 크기)
+        else if (imgSrc.includes('Vn.svg') || imgSrc.includes('/Vn.') || /바이올린/.test(imgAlt)) {
+          instrumentScale = 0.70;
+        }
+        else if (imgSrc.includes('Vla.svg') || imgSrc.includes('/Vla.') || /비올라/.test(imgAlt)) {
+          instrumentScale = 0.80;
+        }
+        // 관악기(트럼펫, 트롬본, 호른)도 더 작게 (75% 크기)
+        else if (imgSrc.includes('Tp.svg') || imgSrc.includes('/Tp.') || /트럼펫/.test(imgAlt)) {
+          instrumentScale = 0.75;
+        }
+        else if (imgSrc.includes('Trb.svg') || imgSrc.includes('/Trb.') || /트롬본|트럼본/.test(imgAlt)) {
+          instrumentScale = 0.75;
+        }
+        else if (imgSrc.includes('Hn.svg') || imgSrc.includes('/Hn.') || /호른/.test(imgAlt)) {
+          instrumentScale = 0.75;
+        }
+        // 다른 악기는 기본 크기
+        else {
+          instrumentScale = 1.0;
+        }
+        
+        // baseScale을 사용 가능한 영역의 직접 비율로 변환
+        const baseScale = img.dataset.scale ? parseFloat(img.dataset.scale) : 0.5;
+        const targetSizeRatio = baseScale * 1.50 * instrumentScale; // 악기별 스케일 적용 (1.35→1.50)
+        const targetSize = usableReferenceSize * targetSizeRatio;
+        
+        // 원본 이미지 비율 유지하면서 targetSize에 맞추기
+        let targetWidth, targetHeight;
+        if (originalWidth > originalHeight) {
+          // 가로가 더 긴 경우
+          targetWidth = targetSize;
+          targetHeight = targetSize * aspectRatio;
+        } else {
+          // 세로가 더 긴 경우
+          targetHeight = targetSize;
+          targetWidth = targetSize / aspectRatio;
+        }
+        
+        // 최대 크기 제한 (절대적인 제한)
+        if (targetWidth > maxImageSize || targetHeight > maxImageSize) {
+          const scaleByWidth = maxImageSize / targetWidth;
+          const scaleByHeight = maxImageSize / targetHeight;
+          const finalScale = Math.min(scaleByWidth, scaleByHeight);
+          targetWidth *= finalScale;
+          targetHeight *= finalScale;
+        }
+        
+        // 반드시 사용 가능한 영역 내에 들어가도록 추가 검증
+        // 악기 그래픽은 원형 경계를 고려하여 더 보수적으로 크기 제한
+        const halfWidth = targetWidth / 2;
+        const halfHeight = targetHeight / 2;
+        
+        // 원형 경계를 고려한 최대 크기 계산 (더 보수적으로)
+        const circleRadiusX = circleWidth / 2;
+        const circleRadiusY = circleHeight / 2;
+        const safeRadiusRatio = 0.65; // 65% 안전 마진으로 매우 보수적으로 (원 경계에서 충분히 떨어진 위치)
+        
+        // 원형 내부에 안전하게 들어갈 수 있는 최대 크기 계산
+        const maxSafeWidth = circleRadiusX * safeRadiusRatio * 2; // 가로 최대 크기
+        const maxSafeHeight = circleRadiusY * safeRadiusRatio * 2; // 세로 최대 크기
+        
+        // 타겟 크기가 안전 범위를 넘으면 더 줄임
+        if (targetWidth > maxSafeWidth || targetHeight > maxSafeHeight) {
+          const scaleBySafeWidth = maxSafeWidth / targetWidth;
+          const scaleBySafeHeight = maxSafeHeight / targetHeight;
+          const safeScale = Math.min(scaleBySafeWidth, scaleBySafeHeight);
+          targetWidth *= safeScale;
+          targetHeight *= safeScale;
+        }
+        
+        // 최종 검증: 크기가 사용 가능한 영역보다 크면 더 줄임 (더 보수적으로)
+        if (targetWidth > usableWidth || targetHeight > usableHeight) {
+          const scaleByUsableWidth = usableWidth * 0.65 / targetWidth; // 65%로 매우 안전하게
+          const scaleByUsableHeight = usableHeight * 0.65 / targetHeight; // 65%로 매우 안전하게
+          const safetyScale = Math.min(scaleByUsableWidth, scaleByUsableHeight);
+          targetWidth *= safetyScale;
+          targetHeight *= safetyScale;
+        }
+        
+        // halfWidth, halfHeight 재계산 (크기 조정 후)
+        const finalHalfWidth = targetWidth / 2;
+        const finalHalfHeight = targetHeight / 2;
+        
+        // 원형 경계를 절대 넘지 않도록 엄격하게 체크 (최우선)
+        // 먼저 원형 경계 내부에 들어갈 수 있는 위치로 조정
+        let finalX = pos.x;
+        let finalY = pos.y;
+        
+        // 원형 경계 내부에 안전하게 배치되도록 엄격하게 체크 (최우선)
+        let maxIterations = 20;
+        let iteration = 0;
+        
+        // 원형 경계 체크 먼저 수행
+        while (iteration < maxIterations) {
+          const checkPoints = [
+            { x: finalX - finalHalfWidth, y: finalY - finalHalfHeight }, // 좌상단
+            { x: finalX + finalHalfWidth, y: finalY - finalHalfHeight }, // 우상단
+            { x: finalX - finalHalfWidth, y: finalY + finalHalfHeight }, // 좌하단
+            { x: finalX + finalHalfWidth, y: finalY + finalHalfHeight }  // 우하단
+          ];
+          
+          let needsAdjustment = false;
+          let adjustX = 0;
+          let adjustY = 0;
+          
+          checkPoints.forEach(point => {
+            // 타원 내부 체크: (x-cx)²/a² + (y-cy)²/b² <= 1
+            const dx = (point.x - circleCenterX) / circleRadiusX;
+            const dy = (point.y - circleCenterY) / circleRadiusY;
+            const distSquared = dx * dx + dy * dy;
+            
+            // 원 경계를 절대 넘지 않도록 엄격하게 체크 (85% 안전 마진)
+            if (distSquared > 0.85) {
+              needsAdjustment = true;
+              // 원 중심으로 이동하는 방향으로 조정
+              const angle = Math.atan2(point.y - circleCenterY, point.x - circleCenterX);
+              const maxDistX = circleRadiusX * 0.85 * Math.cos(angle);
+              const maxDistY = circleRadiusY * 0.85 * Math.sin(angle);
+              
+              // 각 모서리에 따라 이미지 중심을 조정
+              if (point === checkPoints[0] || point === checkPoints[2]) { // 좌측 모서리
+                const desiredX = circleCenterX + maxDistX + finalHalfWidth;
+                adjustX = Math.min(adjustX, (desiredX - finalX) * 0.8);
+              }
+              if (point === checkPoints[1] || point === checkPoints[3]) { // 우측 모서리
+                const desiredX = circleCenterX + maxDistX - finalHalfWidth;
+                adjustX = Math.max(adjustX, (desiredX - finalX) * 0.8);
+              }
+              if (point === checkPoints[0] || point === checkPoints[1]) { // 상단 모서리
+                const desiredY = circleCenterY + maxDistY + finalHalfHeight;
+                adjustY = Math.min(adjustY, (desiredY - finalY) * 0.8);
+              }
+              if (point === checkPoints[2] || point === checkPoints[3]) { // 하단 모서리
+                const desiredY = circleCenterY + maxDistY - finalHalfHeight;
+                adjustY = Math.max(adjustY, (desiredY - finalY) * 0.8);
+              }
+            }
+          });
+          
+          if (!needsAdjustment) break;
+          
+          finalX += adjustX;
+          finalY += adjustY;
+          iteration++;
+        }
+        
+        // 원형 경계 체크 완료 후, 원형 내부에서 충돌 체크 및 최소 간격 확보
+        const minSpacing = Math.max(targetWidth, targetHeight) * 0.12; // 간격을 20%에서 12%로 줄임
+        
+        // 앞서 배치된 악기 이미지들과 충돌 체크 (원형 경계 내부에서만)
+        for (let i = 0; i < index; i++) {
+          const prevImg = instrumentImages[i];
+          
+          let prevCenterX, prevHalfWidth;
+          
+          const prevRect = prevImg.getBoundingClientRect();
+          const ticketContentRectCurrent = ticketContent.getBoundingClientRect();
+          
+          if (prevRect.width > 0 && prevImg.style.width) {
+            prevCenterX = prevRect.left - ticketContentRectCurrent.left + prevRect.width / 2;
+            prevHalfWidth = prevRect.width / 2;
+          } else {
+            const prevPos = instrumentPositions[i];
+            const prevSize = instrumentSizes[i];
+            prevCenterX = prevPos.x;
+            prevHalfWidth = prevSize.halfWidth;
+          }
+          
+          // 가로 방향 충돌 체크 (최소 간격 확보)
+          const minHorizontalGap = finalHalfWidth + prevHalfWidth + minSpacing;
+          const horizontalDistance = finalX - prevCenterX;
+          
+          if (horizontalDistance < minHorizontalGap) {
+            const newX = prevCenterX + minHorizontalGap;
+            
+            // 새 위치가 원형 경계 내부인지 확인
+            const newLeft = newX - finalHalfWidth;
+            const newRight = newX + finalHalfWidth;
+            const newTop = finalY - finalHalfHeight;
+            const newBottom = finalY + finalHalfHeight;
+            
+            const newCheckPoints = [
+              { x: newLeft, y: newTop },
+              { x: newRight, y: newTop },
+              { x: newLeft, y: newBottom },
+              { x: newRight, y: newBottom }
+            ];
+            
+            let allPointsInside = true;
+            for (const point of newCheckPoints) {
+              const dx = (point.x - circleCenterX) / circleRadiusX;
+              const dy = (point.y - circleCenterY) / circleRadiusY;
+              const distSquared = dx * dx + dy * dy;
+              if (distSquared > 0.85) {
+                allPointsInside = false;
+                break;
+              }
+            }
+            
+            // 원형 경계 내부에 들어가면 위치 조정, 아니면 현재 위치 유지
+            if (allPointsInside) {
+              finalX = newX;
+              console.log(`  🔄 악기 ${index + 1} 위치 조정 (이전 이미지와 간격 확보, 원형 내부): ${pos.x.toFixed(1)} → ${finalX.toFixed(1)}px`);
+            } else {
+              console.log(`  ⚠️ 악기 ${index + 1} 위치 조정 취소 (원형 경계를 넘음): 현재 위치 유지`);
+            }
+          }
+        }
+        
+        // 최종 경계 검증 (사각형 경계도 체크)
+        const finalLeft = finalX - finalHalfWidth;
+        const finalRight = finalX + finalHalfWidth;
+        const finalTop = finalY - finalHalfHeight;
+        const finalBottom = finalY + finalHalfHeight;
+        
+        // 사각형 경계 내부 확인 (원의 외접 사각형)
+        const isWithinRect = 
+          finalLeft >= circleLeft && 
+          finalRight <= circleRight && 
+          finalTop >= circleTop && 
+          finalBottom <= circleBottom;
+        
+        if (!isWithinRect) {
+          console.warn(`⚠️ 악기 이미지가 사각형 경계를 넘음, 위치 재조정`);
+          // 사각형 경계로 강제 조정 (finalHalfWidth, finalHalfHeight 사용)
+          if (finalLeft < circleLeft) finalX = circleLeft + finalHalfWidth;
+          if (finalRight > circleRight) finalX = circleRight - finalHalfWidth;
+          if (finalTop < circleTop) finalY = circleTop + finalHalfHeight;
+          if (finalBottom > circleBottom) finalY = circleBottom - finalHalfHeight;
+        }
+        
+        // 퍼센트로 변환
+        let leftPercent = (finalX / ticketContentRect.width) * 100;
+        let topPercent = (finalY / ticketContentRect.height) * 100;
+        
+        console.log(`  📍 악기 그래픽 최종 위치 계산: finalX=${finalX.toFixed(1)}px, finalY=${finalY.toFixed(1)}px → left=${leftPercent.toFixed(2)}%, top=${topPercent.toFixed(2)}%`);
+        
+        img.style.left = leftPercent + '%';
+        img.style.top = topPercent + '%';
+        img.style.width = targetWidth + 'px';
+        img.style.height = targetHeight + 'px';
+        img.style.transform = 'translate(-50%, -50%)'; // 중심 정렬
+        
+        // 🔑 초기 위치를 data 속성으로 저장 (위치 초기화 기능용)
+        img.dataset.initialLeft = leftPercent + '%';
+        img.dataset.initialTop = topPercent + '%';
+        img.dataset.initialPositionSet = 'true'; // 초기 위치 설정 완료 플래그
+        
+        console.log(`  일렬 배치: 악기 그래픽 ${index + 1}번째 이미지`);
+        console.log(`  위치: ${leftPercent.toFixed(2)}%, ${topPercent.toFixed(2)}%`);
+        console.log(`  이미지 크기: ${targetWidth.toFixed(1)}px × ${targetHeight.toFixed(1)}px (right_circle 크기 비례)`);
+        console.log(`  경계 체크: ${isWithinRect ? '✅' : '⚠️'} left=${finalLeft.toFixed(1)} ~ ${finalRight.toFixed(1)}, top=${finalTop.toFixed(1)} ~ ${finalBottom.toFixed(1)}`);
+        
+        // 최종 배치 후 실제 위치 확인 (이미지가 렌더링된 후)
+        setTimeout(() => {
+          const imgRect = img.getBoundingClientRect();
+          const imgLeft = imgRect.left - ticketContentRect.left;
+          const imgTop = imgRect.top - ticketContentRect.top;
+          const imgRight = imgLeft + imgRect.width;
+          const imgBottom = imgTop + imgRect.height;
+          
+          const actuallyWithinBounds = 
+            imgLeft >= circleLeft && 
+            imgRight <= circleRight && 
+            imgTop >= circleTop && 
+            imgBottom <= circleBottom;
+          
+          if (!actuallyWithinBounds) {
+            console.error(`❌❌❌ 경계 위반! 악기 이미지 ${index + 1}이 실제로 right_circle를 넘습니다!`);
+            console.error(`  실제 이미지 범위: ${imgLeft.toFixed(1)} ~ ${imgRight.toFixed(1)}, ${imgTop.toFixed(1)} ~ ${imgBottom.toFixed(1)}`);
+            console.error(`  right_circle 범위: ${circleLeft.toFixed(1)} ~ ${circleRight.toFixed(1)}, ${circleTop.toFixed(1)} ~ ${circleBottom.toFixed(1)}`);
+          } else {
+            console.log(`✅ 악기 이미지 ${index + 1} 경계 확인 완료: right_circle 내부에 정확히 배치됨`);
+          }
+        }, 100);
+        
+        // 드래그 기능 적용
+        makeImageDraggable(img);
+      };
+      
+      // 이미지가 이미 로드되었으면 바로 실행, 아니면 로드 완료 후 실행 (한 번만 실행)
+      let positionUpdated = false;
+      const updateOnce = () => {
+        if (!positionUpdated) {
+          positionUpdated = true;
+        updateImagePosition();
+          // load 이벤트 리스너 제거 (한 번만 실행)
+          img.removeEventListener('load', updateOnce);
+        }
+      };
+      
+      if (img.complete && img.naturalWidth > 0) {
+        updateOnce();
+      } else {
+        img.addEventListener('load', updateOnce, { once: true });
+      }
+    });
+    
+    console.log(`✅ 배치 완료! 일반 그래픽 ${regularImages.length}개 (사분면 배치), 악기 그래픽 ${instrumentImages.length}개 (일렬 배치) - 총 ${draggableImages.length}개 이미지 (right_circle 크기: ${circleWidth.toFixed(1)}px × ${circleHeight.toFixed(1)}px)`);
+  }
+
+  // 🎯 실제 티켓 이미지 영역 계산 및 드래그 경계 설정
+  function calculateTicketBoundary() {
+    const ticketContent = document.getElementById('ticketContent');
+    const ticketLeft = document.querySelector('.ticket-left');
+    const ticketRight = document.querySelector('.ticket-right');
+    
+    if (!ticketContent || !ticketLeft || !ticketRight) {
+      console.warn('티켓 요소를 찾을 수 없어 기본값 사용');
+      return { 
+        left: { minLeft: 0, maxLeft: 50, minTop: 0, maxTop: 100 },
+        right: { minRight: 50, maxRight: 100, minTop: 0, maxTop: 100 }
+      };
+    }
+    
+    const contentRect = ticketContent.getBoundingClientRect();
+    const leftRect = ticketLeft.getBoundingClientRect();
+    const rightRect = ticketRight.getBoundingClientRect();
+    
+    // 왼쪽 티켓 영역 경계
+    const leftBoundary = {
+      minLeft: ((leftRect.left - contentRect.left) / contentRect.width) * 100,
+      maxLeft: ((leftRect.right - contentRect.left) / contentRect.width) * 100,
+      minTop: ((leftRect.top - contentRect.top) / contentRect.height) * 100,
+      maxTop: ((leftRect.bottom - contentRect.top) / contentRect.height) * 100
+    };
+    
+    // 오른쪽 티켓 영역 경계 (right 속성 기준)
+    const rightBoundary = {
+      minRight: ((contentRect.right - rightRect.right) / contentRect.width) * 100,
+      maxRight: ((contentRect.right - rightRect.left) / contentRect.width) * 100,
+      minTop: ((rightRect.top - contentRect.top) / contentRect.height) * 100,
+      maxTop: ((rightRect.bottom - contentRect.top) / contentRect.height) * 100
+    };
+    
+    console.log('🎯 티켓 경계 계산:', { leftBoundary, rightBoundary });
+    
+    return { left: leftBoundary, right: rightBoundary };
+  }
+
+  // 드래그 기능 구현
+  function makeImageDraggable(img) {
+    console.log('🔧 드래그 기능 초기화:', img.src);
+    
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+    const ticketContent = document.getElementById('ticketContent');
+    
+    if (!ticketContent) {
+      console.error('❌ ticketContent 요소를 찾을 수 없습니다');
+      return;
+    }
+    
+    // 드래그 경계는 각 이미지 타입별로 개별 설정
+    console.log('🔧 드래그 기능 초기화 - 경계 계산 생략');
+    
+    // 기존 이벤트 리스너 제거 (중복 방지)
+    img.removeEventListener('mousedown', img._dragMouseDown);
+    document.removeEventListener('mousemove', img._dragMouseMove);
+    document.removeEventListener('mouseup', img._dragMouseUp);
+    
+    let startRight = 0; // 오른쪽 이미지의 초기 right 위치
+    let startRightTop = 0; // 오른쪽 이미지의 초기 top 위치
+    
+    img._dragMouseDown = function(e) {
+      console.log('🖱️ 마우스 다운 이벤트 발생');
+      e.preventDefault();
+      e.stopPropagation();
+      isDragging = true;
+      img.dataset.isDragging = 'true'; // 드래그 중 플래그 설정
+      startX = e.clientX;
+      startY = e.clientY;
+      
+      // 🎯 실제 렌더링된 이미지 중심점을 기준으로 정확한 위치 계산
+      // transform: translate(-50%, -50%) 때문에 이미지 중심점이 style.left/top 위치와 일치
+      const rect = ticketContent.getBoundingClientRect();
+      const imgRect = img.getBoundingClientRect();
+      
+      // 이미지의 실제 중심점 (렌더링된 위치)
+      const imgCenterX = imgRect.left + imgRect.width / 2;
+      const imgCenterY = imgRect.top + imgRect.height / 2;
+      
+      // ticketContent 기준으로 퍼센트 변환 (중심점 기준)
+      startLeft = ((imgCenterX - rect.left) / rect.width) * 100;
+      startTop = ((imgCenterY - rect.top) / rect.height) * 100;
+      
+      // style 값과 비교 (디버깅용)
+      const styleLeft = parseFloat(img.style.left) || 0;
+      const styleTop = parseFloat(img.style.top) || 0;
+      const diffLeft = Math.abs(startLeft - styleLeft);
+      const diffTop = Math.abs(startTop - styleTop);
+      
+      console.log('📍 드래그 시작 위치 계산:', {
+        실제위치: { left: startLeft.toFixed(2) + '%', top: startTop.toFixed(2) + '%' },
+        style값: { left: styleLeft.toFixed(2) + '%', top: styleTop.toFixed(2) + '%' },
+        차이: { left: diffLeft.toFixed(2) + '%', top: diffTop.toFixed(2) + '%' },
+        이미지중심: { x: imgCenterX.toFixed(1) + 'px', y: imgCenterY.toFixed(1) + 'px' },
+        컨테이너: { left: rect.left.toFixed(1) + 'px', top: rect.top.toFixed(1) + 'px', width: rect.width.toFixed(1) + 'px', height: rect.height.toFixed(1) + 'px' }
+      });
+      
+      if (diffLeft > 1 || diffTop > 1) {
+        console.warn('⚠️ 실제 위치와 style 값에 차이가 있습니다!', { diffLeft, diffTop });
+      }
+      
+      // 드래그 시작 로그
+      const currentIndex = img.dataset.index;
+      console.log('🔍 드래그 시작 - 이미지 index:', currentIndex);
+      
+      // 클릭한 그래픽의 z-index를 올려서 가장 위에 표시 (악기 포함)
+      // 모든 드래그 가능한 이미지 중에서 최대 z-index 찾기
+      const allDraggableImages = ticketContent.querySelectorAll('img[style*="cursor"]');
+      let maxZIndex = 10; // 기본 z-index 시작값
+      
+      allDraggableImages.forEach(otherImg => {
+        const zIndex = parseInt(otherImg.style.zIndex) || 10;
+        if (zIndex > maxZIndex) {
+          maxZIndex = zIndex;
+        }
+      });
+      
+      // 현재 이미지의 z-index를 최대값보다 1 높게 설정
+      img.style.zIndex = (maxZIndex + 1).toString();
+      console.log(`📌 z-index 설정: ${img.style.zIndex}`);
+      
+      img.style.cursor = 'grabbing';
+    };
+    
+    img._dragMouseMove = function(e) {
+      if (!isDragging) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // ticketContent 위치가 변경되었을 수 있으므로 매번 재계산
+      const rect = ticketContent.getBoundingClientRect();
+      
+      // 마우스 이동량 계산
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      
+      // 픽셀을 퍼센트로 변환 (ticketContent 기준)
+      const deltaXPercent = (deltaX / rect.width) * 100;
+      const deltaYPercent = (deltaY / rect.height) * 100;
+      
+      // 시작 위치에서 이동량만큼 더하기
+      let newLeft = startLeft + deltaXPercent;
+      let newTop = startTop + deltaYPercent;
+      
+      // 이미지 크기 계산 (퍼센트) - SVG 원본 크기 사용
+      const imgWidthPercent = (img.offsetWidth / rect.width) * 100;
+      const imgHeightPercent = (img.offsetHeight / rect.height) * 100;
+      
+      // 🎯 right_circle 영역을 절대 넘지 않도록 경계 제한
+      const rightCircleEl = document.getElementById('rightCircle');
+      if (!rightCircleEl) {
+        console.error('❌ rightCircle 요소를 찾을 수 없습니다!');
+        return;
+      }
+      
+      const ticketContentRect = ticketContent.getBoundingClientRect();
+      const rightCircleRect = rightCircleEl.getBoundingClientRect();
+      
+      // right_circle의 위치 (ticketContent 기준)
+      const circleLeft = rightCircleRect.left - ticketContentRect.left;
+      const circleTop = rightCircleRect.top - ticketContentRect.top;
+      const circleRight = circleLeft + rightCircleRect.width;
+      const circleBottom = circleTop + rightCircleRect.height;
+      
+      // 원형 드래그 영역 계산
+      const circleCenterX = circleLeft + rightCircleRect.width / 2;
+      const circleCenterY = circleTop + rightCircleRect.height / 2;
+      const circleRadius = Math.min(rightCircleRect.width, rightCircleRect.height) / 2;
+      
+      // 악기 그래픽인지 확인
+      const imgSrc = img.src || '';
+      const imgAlt = img.alt || '';
+      const isInstrument = imgSrc.includes('/instruments/') || /(바이올린|비올라|첼로|트럼본|트럼펫|호른|플룻|클라리넷|콘트라베이스)/.test(imgAlt);
+      
+      // 이미지의 중심점 기준으로 경계 계산 (transform: translate(-50%, -50%) 사용)
+      const halfImgWidthPercent = imgWidthPercent / 2;
+      const halfImgHeightPercent = imgHeightPercent / 2;
+      
+      // 이미지 중심점의 픽셀 좌표 (ticketContent 기준)
+      const newLeftPx = (newLeft / 100) * ticketContentRect.width;
+      const newTopPx = (newTop / 100) * ticketContentRect.height;
+      
+      // 원형 경계 체크: 이미지 중심점이 원 안에 있는지 확인
+      const dx = newLeftPx - circleCenterX;
+      const dy = newTopPx - circleCenterY;
+      const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
+      
+      // 이미지의 대각선 반지름 계산 (원형 경계를 넘지 않도록)
+      const imgDiagonalRadius = Math.sqrt(
+        (img.offsetWidth / 2) ** 2 + 
+        (img.offsetHeight / 2) ** 2
+      );
+      
+      // 🎯 원형 경계 체크: 단순하게 이미지 중심점이 원 안에 있는지 확인
+      // 마진을 적절히 조정해서 드래그 범위 제공
+      const safeRadiusRatio = isInstrument ? 0.96 : 0.97; // 악기는 96%, 일반은 97% (적절한 마진)
+      // imgDiagonalRadius를 적절히 반영
+      const maxAllowedDistance = circleRadius * safeRadiusRatio - (imgDiagonalRadius * 0.7);
+      
+      // 상단/하단은 좌우 마진 많이, 중단은 마진 없음으로 구분
+      const yPercent = (newTopPx / ticketContentRect.height) * 100;
+      const circleTopPercent = (circleTop / ticketContentRect.height) * 100;
+      const circleBottomPercent = (circleBottom / ticketContentRect.height) * 100;
+      const circleHeightPercent = circleBottomPercent - circleTopPercent;
+      
+      // 상단/중단/하단 구분 (33%씩 나눔)
+      const topThreshold = circleTopPercent + circleHeightPercent * 0.33;
+      const bottomThreshold = circleTopPercent + circleHeightPercent * 0.67;
+      
+      // 상하 마진 (적절한 마진)
+      const verticalMargin = isInstrument ? circleRadius * 0.008 : circleRadius * 0.005;
+      
+      let horizontalMargin;
+      if (yPercent < topThreshold) {
+        // 상단: 좌우 마진 (적절한 마진)
+        horizontalMargin = isInstrument ? circleRadius * 0.02 : circleRadius * 0.012;
+      } else if (yPercent > bottomThreshold) {
+        // 하단: 좌우 마진 (적절한 마진)
+        horizontalMargin = isInstrument ? circleRadius * 0.02 : circleRadius * 0.012;
+      } else {
+        // 중단: 좌우 마진 없음
+        horizontalMargin = 0;
+      }
+      
+      // 원형 경계를 넘으면 원 안으로 제한
+      if (distanceFromCenter > maxAllowedDistance) {
+        // 원의 경계로 이동 (중심에서 maxAllowedDistance 거리만큼)
+        const angle = Math.atan2(dy, dx);
+        const limitedX = circleCenterX + maxAllowedDistance * Math.cos(angle);
+        const limitedY = circleCenterY + maxAllowedDistance * Math.sin(angle);
+        
+        newLeft = (limitedX / ticketContentRect.width) * 100;
+        newTop = (limitedY / ticketContentRect.height) * 100;
+        
+        // 제한 후 위치 재계산
+        const newLeftPxAfterLimit = (newLeft / 100) * ticketContentRect.width;
+        const newTopPxAfterLimit = (newTop / 100) * ticketContentRect.height;
+        const dyAfterLimit = newTopPxAfterLimit - circleCenterY;
+        const yPercentAfterLimit = (newTopPxAfterLimit / ticketContentRect.height) * 100;
+        
+        // 상단/하단인 경우 좌우 마진 추가 적용
+        if (yPercentAfterLimit < topThreshold || yPercentAfterLimit > bottomThreshold) {
+          const dxAfterLimit = newLeftPxAfterLimit - circleCenterX;
+          const maxHorizontalDistance = Math.sqrt(maxAllowedDistance ** 2 - dyAfterLimit ** 2);
+          const allowedMaxX = Math.max(0, maxHorizontalDistance - horizontalMargin);
+          
+          if (Math.abs(dxAfterLimit) > allowedMaxX) {
+            if (dxAfterLimit > 0) {
+              newLeft = ((circleCenterX + allowedMaxX) / ticketContentRect.width) * 100;
+      } else {
+              newLeft = ((circleCenterX - allowedMaxX) / ticketContentRect.width) * 100;
+            }
+          }
+        }
+      } else {
+        // 원형 경계 내부에 있을 때도 상단/하단인 경우 좌우 마진 체크
+        if (yPercent < topThreshold || yPercent > bottomThreshold) {
+          const maxHorizontalDistance = Math.sqrt(maxAllowedDistance ** 2 - dy ** 2);
+          const allowedMaxX = Math.max(0, maxHorizontalDistance - horizontalMargin);
+          
+          if (Math.abs(dx) > allowedMaxX) {
+            if (dx > 0) {
+              newLeft = ((circleCenterX + allowedMaxX) / ticketContentRect.width) * 100;
+            } else {
+              newLeft = ((circleCenterX - allowedMaxX) / ticketContentRect.width) * 100;
+            }
+          }
+        }
+      }
+      
+      // 추가 경계 체크: 상하 경계 (마진 최소화)
+      // verticalMargin을 퍼센트로 변환 (픽셀을 퍼센트로)
+      const verticalMarginPercent = (verticalMargin / ticketContentRect.height) * 100;
+      const circleTopPercentWithMargin = circleTopPercent + verticalMarginPercent;
+      const circleBottomPercentWithMargin = circleBottomPercent - verticalMarginPercent;
+      
+      const minTop = circleTopPercentWithMargin + halfImgHeightPercent;
+      const maxTop = circleBottomPercentWithMargin - halfImgHeightPercent;
+      newTop = Math.max(minTop, Math.min(newTop, maxTop));
+      
+      console.log('🎯 드래그 경계 (원형 영역, 상단/하단 마진 적용):', { 
+        circleCenter: `(${circleCenterX.toFixed(1)}, ${circleCenterY.toFixed(1)})`,
+        circleRadius: circleRadius.toFixed(1),
+        maxAllowedDistance: maxAllowedDistance.toFixed(1),
+        imgDiagonalRadius: imgDiagonalRadius.toFixed(1),
+        horizontalMargin: horizontalMargin.toFixed(1),
+        verticalMargin: verticalMargin.toFixed(1),
+        yPercent: yPercent.toFixed(2),
+        zone: yPercent < topThreshold ? '상단' : (yPercent > bottomThreshold ? '하단' : '중단'),
+        distanceFromCenter: distanceFromCenter.toFixed(1),
+        newLeft: newLeft.toFixed(2), 
+        newTop: newTop.toFixed(2) 
+      });
+      
+      img.style.left = newLeft + '%';
+      img.style.top = newTop + '%';
+      img.dataset.userMoved = 'true'; // 사용자가 직접 이동시킴 플래그
+      
+      // 드래그 완료 - 로그만 출력
+      console.log(`✅ 이미지 ${img.dataset.index} 드래그 완료: left=${newLeft}%, top=${newTop}%`);
+    };
+    
+    img._dragMouseUp = function(e) {
+      if (isDragging) {
+        isDragging = false;
+        img.dataset.isDragging = 'false'; // 드래그 종료 플래그 해제
+        img.style.cursor = 'move';
+        
+        // 최종 위치 로그
+        console.log(`이미지 ${img.dataset.index} 위치: left=${img.style.left}, top=${img.style.top}`);
+      }
+    };
+    
+    // 이벤트 리스너 등록
+    img.addEventListener('mousedown', img._dragMouseDown);
+    document.addEventListener('mousemove', img._dragMouseMove);
+    document.addEventListener('mouseup', img._dragMouseUp);
+    
+    console.log('✅ 드래그 이벤트 리스너 등록 완료');
+  }
+
+  // 사용자 선택에 따른 실제 이미지 표시
+  if (selectedValues.length > 0) {
+    console.log('선택된 값들로 이미지 생성:', selectedValues);
+    
+    let imagesHTML = '';
+    
+    // 사용자 선택 텍스트 추가
+    imagesHTML += generateUserText();
+    
+    selectedValues.forEach((value, index) => {
+      const imageData = KEYWORD_IMAGES[value];
+      if (imageData && index < 7) {  // 최대 7개까지만
+        // 왼쪽/오른쪽 이미지 위치 개별 설정
+        const leftPos = IMAGE_POSITIONS.left[index];
+        const rightPos = IMAGE_POSITIONS.right[index];
+        
+        console.log(`${index + 1}번째 이미지:`, value, '→', imageData);
+        console.log(`  왼쪽 위치: x=${leftPos.x}%, y=${leftPos.y}% (SVG 원본 크기 사용)`);
+        console.log(`  오른쪽 위치: x=${rightPos.x}%, y=${rightPos.y}% (SVG 원본 크기 사용)`);
+        
+        // 모든 악기 동일한 높이로 맞춤 (브라스 악기 조정 제거)
+        const topAdjustment = 0; // 모든 악기 동일한 높이
+        const adjustedTopY = leftPos.y + topAdjustment;
+        
+        // 이미지 타입별 기본 크기 설정 (배치 함수에서 right_circle 크기에 비례하여 최종 조정됨)
+        const instrumentNames = ['바이올린', '비올라', '첼로', '트럼본', '트럼펫', '호른', '플룻', '클라리넷', '콘트라베이스'];
+        const isInstrument = instrumentNames.includes(value);
+        // 기본 scale 값 (배치 함수에서 right_circle 크기에 비례하여 조정됨)
+        const baseScale = isInstrument ? 0.40 : 0.70; // 악기: 0.40 유지, 일반: 0.65→0.70 (더 키움)
+        
+        // 왼쪽 이미지만 생성 (드래그 가능)
+        // 크기는 배치 함수에서 right_circle 크기에 비례하여 설정됨
+        imagesHTML += `<img src="${imageData.left}" 
+          class="draggable-img"
+          style="position: absolute; left: ${leftPos.x}%; top: ${adjustedTopY}%; width: auto; height: auto; z-index: 10; display: block; margin: 0; padding: 0; border: 0; outline: 0; vertical-align: baseline; line-height: 0; cursor: move; user-select: none; pointer-events: auto;" 
+          alt="${value}" 
+          draggable="false"
+          data-index="${index}"
+          data-side="left"
+          data-scale="${baseScale}"
+          onerror="console.error('❌ 이미지 로드 실패:', '${imageData.left}'); this.alt='로드실패: ${value}'" />`;
+      } else if (index >= 7) {
+        console.warn(`이미지 ${index + 1}번은 최대 개수(7개)를 초과하여 무시됩니다.`);
+      } else {
+        console.warn('이미지 데이터를 찾을 수 없음:', value);
+      }
+    });
+    
+    if (imagesHTML) {
+      ticketContent.innerHTML = imagesHTML;
+      console.log('✅ 사용자 선택에 따른 이미지 표시 완료');
+      console.log('표시된 이미지 개수:', Math.min(selectedValues.length, 7) * 2);
+      
+      // 드래그 가능한 이미지들에 이벤트 리스너 적용 및 간격 0 배치
+      setTimeout(() => {
+        const draggableImages = ticketContent.querySelectorAll('.draggable-img');
+        console.log('🔍 드래그 가능한 이미지 개수:', draggableImages.length);
+        draggableImages.forEach((img, idx) => {
+          console.log(`  왼쪽 이미지 ${idx}: index=${img.dataset.index}, side=${img.dataset.side}`);
+        });
+        
+        // 사용자 선택 이미지에 맞춰 자동으로 픽셀 계산해서 딱 붙게 배치
+        try {
+          autoArrangeImagesWithPixelAccuracy(draggableImages, ticketContent);
+          
+          // 이미지 배치 후 glow 원 크기 업데이트
+          setTimeout(() => {
+            updateRightCircleGlowSize();
+          }, 100);
+          
+          // 이미지 배치 완료 후 로딩 종료
+          setTimeout(() => {
+            console.log('🎉 티켓 생성 완료, 로딩 종료');
+            // glow 원 크기 최종 업데이트
+            updateRightCircleGlowSize();
+            hideLoading();
+          }, 500);
+        } catch (error) {
+          console.error('❌ 이미지 배치 중 오류:', error);
+          hideLoading();
+        }
+      }, 500);
+      
+    } else {
+      console.log('표시할 이미지가 없음');
+      // 이미지가 없어도 로딩 종료
+      setTimeout(() => {
+        console.log('🎉 이미지 없음, 로딩 종료');
+        hideLoading();
+      }, 500);
+    }
+  } else {
+    console.log('선택된 항목이 없어서 이미지 표시 안함');
+    // 선택 항목이 없어도 로딩 종료
+    setTimeout(() => {
+      console.log('🎉 선택 항목 없음, 로딩 종료');
+      hideLoading();
+    }, 500);
+  }
+
+  // 최종 안전장치: 3초 후 무조건 로딩 종료
+  setTimeout(() => {
+    console.log('⏰ 최종 안전장치: 로딩 강제 종료');
+    hideLoading();
+  }, 3000);
+
+  // optionally, pre-compose ticket to warm cache (no UI)
+  try { await composeTicketDataURL(); } catch(e){ /* ignore */ }
+  
+  } catch (error) {
+    console.error('❌ 초기화 중 오류 발생:', error);
+    console.error('오류 스택:', error.stack);
+    // 오류가 발생해도 로딩 화면은 숨김
+    hideLoading();
+  }
+})();
+
+// 화면 크기 변경 시 glow 원 크기 업데이트
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    updateRightCircleGlowSize();
+  }, 250);
+});
+</script>
+</body>
+</html>
