@@ -163,9 +163,11 @@
     .archive-grid {
       position: relative;
       width: 100%;
-      height: 100%;
-      min-height: calc(100vh - 300px);
+      min-height: calc(100vh - 200px);
       margin-bottom: 3vw;
+      /* 스크롤 가능하도록 높이 제한 제거, 내용에 맞게 자동 확장 */
+      overflow-y: auto;
+      overflow-x: hidden;
     }
     
     .archive-item {
@@ -189,6 +191,39 @@
       /* hover 시 물리 시뮬레이션 일시 정지 */
       z-index: 100;
       filter: drop-shadow(0 10px 20px rgba(235, 254, 179, 0.3));
+    }
+    
+    /* 새로운 아이템 반짝임 애니메이션 */
+    @keyframes newItemGlow {
+      0%, 100% {
+        filter: drop-shadow(0 0 20px rgba(235, 254, 179, 1)) drop-shadow(0 0 40px rgba(235, 254, 179, 0.9)) drop-shadow(0 0 60px rgba(235, 254, 179, 0.7)) drop-shadow(0 0 80px rgba(235, 254, 179, 0.5));
+        opacity: 1;
+      }
+      50% {
+        filter: drop-shadow(0 0 40px rgba(235, 254, 179, 1)) drop-shadow(0 0 80px rgba(235, 254, 179, 1)) drop-shadow(0 0 120px rgba(235, 254, 179, 0.9)) drop-shadow(0 0 160px rgba(235, 254, 179, 0.7)) drop-shadow(0 0 200px rgba(235, 254, 179, 0.5));
+        opacity: 1;
+      }
+    }
+    
+    .archive-item.new-item {
+      animation: newItemGlow 1.2s ease-in-out infinite;
+      z-index: 200;
+      /* 물리 시뮬레이션의 transform과 충돌하지 않도록 transform은 사용하지 않음 */
+    }
+    
+    /* 10초 후 애니메이션 페이드아웃 */
+    @keyframes fadeOutGlow {
+      from {
+        filter: drop-shadow(0 0 20px rgba(235, 254, 179, 1)) drop-shadow(0 0 40px rgba(235, 254, 179, 0.9)) drop-shadow(0 0 60px rgba(235, 254, 179, 0.7));
+      }
+      to {
+        filter: drop-shadow(0 10px 20px rgba(235, 254, 179, 0.3));
+        animation: none;
+      }
+    }
+    
+    .archive-item.new-item.fade-out {
+      animation: fadeOutGlow 1s ease-out forwards;
     }
     
     /* 일괄 삭제 버튼 */
@@ -483,6 +518,7 @@
 
   <script>
     const ARCHIVE_KEY = "portato_archive_v1";
+    const LAST_VIEWED_KEY = "portato_last_viewed_timestamp";
     
     // 아카이브 데이터 로드 및 표시
     function loadArchive() {
@@ -555,33 +591,51 @@
       // 최신 순으로 정렬
       const sortedData = archiveData.sort((a, b) => b.timestamp - a.timestamp);
       
-      // 항목 개수와 화면 비율에 따른 크기 조정
+      // 항목 개수와 화면 비율에 따른 크기 조정 (화면 비례 단위 사용)
       const itemCount = sortedData.length;
       const gridWidth = window.innerWidth - 100;
       const gridHeight = window.innerHeight - 200;
       const gridArea = gridWidth * gridHeight;
       
-      let itemSize, maxImgSize;
+      // 화면 비례 크기 계산 (vw 단위)
+      const minSizeVw = 18; // 최소 크기: 화면 너비의 18% (더 크게)
+      const maxSizeVw = 28; // 최대 크기: 화면 너비의 28% (더 크게)
       
-      if (itemCount < 5) {
-        // 5개 전까지: 똑같이 적당히 큰 상태 유지 (너무 커지는 것 방지)
-        itemSize = 250;
-        maxImgSize = 250;
+      let itemSizeVw, maxImgSizeVw;
+      
+      if (itemCount < 3) {
+        // 3개 전까지: 최대 크기 유지
+        itemSizeVw = maxSizeVw;
+        maxImgSizeVw = maxSizeVw;
+      } else if (itemCount < 8) {
+        // 3~7개: 약간 줄어듦
+        itemSizeVw = maxSizeVw * 0.85; // 85% 크기
+        maxImgSizeVw = maxSizeVw * 0.85;
+      } else if (itemCount < 15) {
+        // 8~14개: 중간 크기
+        itemSizeVw = maxSizeVw * 0.7; // 70% 크기
+        maxImgSizeVw = maxSizeVw * 0.7;
+      } else if (itemCount < 25) {
+        // 15~24개: 작아지기 시작
+        itemSizeVw = maxSizeVw * 0.6; // 60% 크기
+        maxImgSizeVw = maxSizeVw * 0.6;
       } else {
-        // 5개 이후: 화면의 일정 비율을 채울 수 있도록 크기 계산
-        // 각 그래픽이 화면 면적의 일정 비율을 차지하도록
-        // 예: 각 그래픽이 화면의 8~12% 정도 차지하도록
-        const targetAreaPerItem = gridArea * 0.10; // 화면 면적의 10% (적당히 조정 가능)
+        // 25개 이후: 화면의 일정 비율을 채울 수 있도록 크기 계산
+        const targetAreaPerItem = gridArea * 0.08; // 화면 면적의 8%
         const estimatedItemArea = targetAreaPerItem / 1.5; // 여유 공간 1.5배 고려
-        itemSize = Math.sqrt(estimatedItemArea); // 정사각형 가정
-        maxImgSize = itemSize;
+        const itemSizePx = Math.sqrt(estimatedItemArea); // 정사각형 가정
+        // 픽셀을 vw로 변환
+        itemSizeVw = (itemSizePx / window.innerWidth) * 100;
+        maxImgSizeVw = itemSizeVw;
         
-        // 최소/최대 크기 제한
-        const minSize = 100;
-        const maxSize = 250;
-        itemSize = Math.max(minSize, Math.min(maxSize, itemSize));
-        maxImgSize = itemSize;
+        // 최소/최대 크기 제한 (vw 단위)
+        itemSizeVw = Math.max(minSizeVw, Math.min(maxSizeVw * 0.5, itemSizeVw));
+        maxImgSizeVw = itemSizeVw;
       }
+      
+      // 픽셀 크기도 계산 (물리 시뮬레이션용)
+      const itemSize = (itemSizeVw / 100) * window.innerWidth;
+      const maxImgSize = (maxImgSizeVw / 100) * window.innerWidth;
       
       console.log(`📊 아카이브 항목 개수: ${itemCount}개, 아이템 크기: ${itemSize}px`);
       
@@ -605,30 +659,34 @@
           ticketContent = `
             <div class="ticket-container" style="position: relative; display: inline-block; margin: 0 auto; background: transparent; line-height: 0;">
               <img src="${item.rightCircleImage}" alt="티켓 right_circle 영역" 
-                   style="display: block; width: auto; height: auto; max-width: ${maxImgSize}px; max-height: ${maxImgSize}px; border: 0 !important; outline: 0 !important; background: transparent !important; image-rendering: auto;"
+                   style="display: block; width: auto; height: auto; max-width: ${maxImgSizeVw}vw; max-height: ${maxImgSizeVw}vw; border: 0 !important; outline: 0 !important; background: transparent !important; image-rendering: auto;"
                    onload="(function(img) {
-                     // 이미지의 자연스러운 크기를 유지하면서 max 크기만 제한
+                     // 이미지의 자연스러운 크기를 유지하면서 max 크기만 제한 (vw 단위)
                      const naturalWidth = img.naturalWidth;
                      const naturalHeight = img.naturalHeight;
-                     const maxSize = ${maxImgSize};
+                     const maxSizeVw = ${maxImgSizeVw};
+                     const maxSizePx = (maxSizeVw / 100) * window.innerWidth;
                      
                      let displayWidth = naturalWidth;
                      let displayHeight = naturalHeight;
                      
                      // 비율을 유지하면서 max 크기 내로 조정
-                     if (displayWidth > maxSize) {
-                       const ratio = maxSize / displayWidth;
-                       displayWidth = maxSize;
+                     if (displayWidth > maxSizePx) {
+                       const ratio = maxSizePx / displayWidth;
+                       displayWidth = maxSizePx;
                        displayHeight = displayHeight * ratio;
                      }
-                     if (displayHeight > maxSize) {
-                       const ratio = maxSize / displayHeight;
-                       displayHeight = maxSize;
+                     if (displayHeight > maxSizePx) {
+                       const ratio = maxSizePx / displayHeight;
+                       displayHeight = maxSizePx;
                        displayWidth = displayWidth * ratio;
                      }
                      
-                     img.style.width = displayWidth + 'px';
-                     img.style.height = displayHeight + 'px';
+                     // vw 단위로 변환하여 설정
+                     const displayWidthVw = (displayWidth / window.innerWidth) * 100;
+                     const displayHeightVw = (displayHeight / window.innerWidth) * 100;
+                     img.style.width = displayWidthVw + 'vw';
+                     img.style.height = displayHeightVw + 'vw';
                    })(this);">
             </div>
           `;
@@ -636,7 +694,7 @@
           // 컨테이너를 정사각형으로 만들어 원형 모양 유지
           // right_circle.svg를 배경으로 사용 (원형 컨테이너로 제한)
           ticketContent = `
-            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${maxImgSize}px; max-height: ${maxImgSize}px; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
+            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${maxImgSizeVw}vw; max-height: ${maxImgSizeVw}vw; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
               ${item.imagePositions.map(imgData => {
                 // 새 형식: relativeLeft, relativeTop 등 사용 (right_circle 기준 0~1 범위)
                 if (imgData.relativeLeft !== undefined) {
@@ -691,7 +749,7 @@
         } else if (item.rightImagePositions && item.rightImagePositions.length > 0) {
           // 하위 호환성: rightImagePositions 사용
           ticketContent = `
-            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${maxImgSize}px; max-height: ${maxImgSize}px; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
+            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${maxImgSizeVw}vw; max-height: ${maxImgSizeVw}vw; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
               ${item.rightImagePositions.map(imgData => `
                 <img src="${imgData.src}" alt=""
                      style="position: absolute; right: ${imgData.right || 50}%; top: ${imgData.top || 50}%; 
@@ -705,40 +763,42 @@
         } else {
           // 기존 캡쳐 이미지가 있는 경우 (하위 호환성)
           ticketContent = `
-            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${maxImgSize}px; max-height: ${maxImgSize}px; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
+            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${maxImgSizeVw}vw; max-height: ${maxImgSizeVw}vw; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
               ${item.image ? `<img src="${item.image}" alt="티켓 이미지" style="width: 100%; height: 100%; object-fit: contain;">` : ''}
             </div>
           `;
         }
 
         // 폰트 크기 동적 계산 (그래픽 크기에 비례하되 텍스트가 과도하게 커지지 않도록)
-        // 250px를 기준으로 하되, 그래픽 크기 변화에 텍스트는 더 작게 반응 (0.6배)
-        // 예: 그래픽이 100px→250px (2.5배)일 때 텍스트는 1.5배 정도만 커짐
-        const baseFontSize = 250; // 기준 그래픽 크기
+        // vw 기준으로 계산 (화면 비례)
+        // 20vw를 기준으로 하되, 그래픽 크기 변화에 텍스트는 더 작게 반응 (0.6배)
+        const baseFontSizeVw = 20; // 기준 그래픽 크기 (vw)
         const fontSizeRatio = 0.6; // 텍스트 변화 비율 (그래픽보다 작게)
-        const normalizedScale = 1 + (maxImgSize - baseFontSize) / baseFontSize * fontSizeRatio;
-        // 실제 픽셀 크기로 계산 (250px 그래픽 기준으로 0.7vw 정도)
-        const baseFontSizePx = window.innerWidth * 0.007; // 0.7vw를 픽셀로 변환 (대략)
-        const stageInfoFontSizePx = baseFontSizePx * normalizedScale;
-        const stageInfoFontSize = `${stageInfoFontSizePx}px`;
+        const normalizedScale = 1 + (maxImgSizeVw - baseFontSizeVw) / baseFontSizeVw * fontSizeRatio;
+        // vw 단위로 계산 (화면 비례)
+        const baseFontSizeVwValue = 0.7; // 기준 폰트 크기 (vw)
+        const stageInfoFontSizeVw = baseFontSizeVwValue * normalizedScale;
+        const stageInfoFontSize = `${stageInfoFontSizeVw}vw`;
         
         // 오버레이 텍스트 크기 (약간 더 작게)
-        const overlayFontSizePx = baseFontSizePx * normalizedScale * 0.9;
-        const overlayFontSize = `${overlayFontSizePx}px`;
+        const overlayFontSizeVw = baseFontSizeVwValue * normalizedScale * 0.9;
+        const overlayFontSize = `${overlayFontSizeVw}vw`;
         
         // 스테이지 정보 생성
         // 그래픽 크기에 정확히 비례하여 텍스트 위치 조정 (더 가깝게)
-        const baseSizeForPosition = 250; // 기준 크기
-        const positionScale = maxImgSize / baseSizeForPosition;
-        // bottom 위치를 그래픽 크기에 비례하여 조정 (250px일 때 -20px로 줄여서 더 가깝게)
-        const bottomOffset = -20 * positionScale;
+        // vw 기준으로 계산
+        const baseSizeForPositionVw = 20; // 기준 크기 (vw)
+        const positionScale = maxImgSizeVw / baseSizeForPositionVw;
+        // bottom 위치를 그래픽 크기에 비례하여 조정 (20vw일 때 -1vw로 줄여서 더 가깝게)
+        const bottomOffsetVw = -1 * positionScale;
+        const bottomOffset = `${bottomOffsetVw}vw`;
         
         let stageInfoHTML = '';
         if (item.selections) {
           const stageInfo = generateStageInfo(item.selections, item.timestamp);
           if (stageInfo) {
             stageInfoHTML = `
-              <div class="archive-stage-info" style="font-size: ${stageInfoFontSize}; bottom: ${bottomOffset}px;">
+              <div class="archive-stage-info" style="font-size: ${stageInfoFontSize}; bottom: ${bottomOffset};">
                 <span class="stage-name">${stageInfo.stageName}</span>
                 <span class="stage-datetime">${stageInfo.dateTime}</span>
               </div>
@@ -747,7 +807,8 @@
         }
         
         // ticket-info 위치도 그래픽 크기에 비례하여 조정 (더 가깝게)
-        const ticketInfoTopOffset = maxImgSize * 0.03; // 그래픽 크기의 3% 아래
+        const ticketInfoTopOffsetVw = maxImgSizeVw * 0.03; // 그래픽 크기의 3% 아래 (vw)
+        const ticketInfoTopOffset = `${ticketInfoTopOffsetVw}vw`;
         
         return `
           <div class="archive-item" onclick="viewTicket('${item.id}')">
@@ -762,22 +823,59 @@
       
       // 컨테이너 크기 계산 (DOM이 렌더링된 후)
       setTimeout(() => {
+        const padding = 50;
         const gridWidth = archiveGrid.offsetWidth || window.innerWidth - 100;
-        const gridHeight = archiveGrid.offsetHeight || window.innerHeight - 200;
+        // 스크롤 가능하도록 높이는 내용에 맞게 자동 조정
+        // 최소 높이만 설정하고, 내용이 많으면 자동으로 늘어나도록
+        const minGridHeight = window.innerHeight - 200;
+        // 아이템 개수에 따라 필요한 최소 높이 계산 (충돌 방지를 위한 여유 공간 포함)
+        const estimatedNeededHeight = Math.max(
+          minGridHeight,
+          Math.ceil(Math.sqrt(itemCount)) * (itemSize + padding * 2) + padding * 2
+        );
+        archiveGrid.style.minHeight = `${estimatedNeededHeight}px`;
+        const gridHeight = Math.max(estimatedNeededHeight, archiveGrid.offsetHeight || minGridHeight);
         
         // 각 아이템에 랜덤 위치 적용 및 물리 시뮬레이션 데이터 초기화
         const archiveItems = archiveGrid.querySelectorAll('.archive-item');
         const items = []; // 물리 시뮬레이션용 아이템 배열
         
-        const padding = 50;
+        // 마지막으로 본 최신 timestamp 확인
+        const lastViewedTimestamp = parseInt(localStorage.getItem(LAST_VIEWED_KEY) || '0');
+        const currentLatestTimestamp = sortedData.length > 0 ? sortedData[0].timestamp : 0;
+        
+        // 새로운 아이템이 있는지 확인 (현재 최신 아이템이 마지막으로 본 것보다 최신인 경우)
+        const hasNewItems = currentLatestTimestamp > lastViewedTimestamp;
         
         archiveItems.forEach((itemEl, index) => {
           const maxX = Math.max(0, gridWidth - itemSize - padding);
           const maxY = Math.max(0, gridHeight - itemSize - padding);
           
-          // 랜덤 위치 생성
+          // 랜덤 위치 생성 (새로운 아이템은 위쪽에, 오래된 아이템은 아래쪽에)
+          const itemTimestamp = sortedData[index]?.timestamp || Date.now();
+          const age = Date.now() - itemTimestamp; // 아이템의 나이 (밀리초)
+          const ageInSeconds = age / 1000; // 초 단위
+          
+          // 새로운 아이템은 위쪽에, 오래된 아이템은 아래쪽에 배치
+          const yBias = Math.min(ageInSeconds / 300, 0.7); // 5분 지나면 아래쪽으로 70% 이동
           const randomX = padding + Math.random() * maxX;
-          const randomY = padding + Math.random() * maxY;
+          const randomY = padding + Math.random() * (maxY * (1 - yBias * 0.3)); // 위쪽에 더 많이 배치
+          
+          // 첫 번째 아이템(가장 최신)이 새로운 아이템인 경우 애니메이션 추가
+          if (index === 0 && hasNewItems) {
+            itemEl.classList.add('new-item');
+            console.log('✨ 새로운 아이템 감지! 반짝임 애니메이션 적용');
+            
+            // 10초 후 애니메이션 제거
+            setTimeout(() => {
+              itemEl.classList.add('fade-out');
+              setTimeout(() => {
+                itemEl.classList.remove('new-item', 'fade-out');
+                // 마지막으로 본 timestamp 업데이트
+                localStorage.setItem(LAST_VIEWED_KEY, currentLatestTimestamp.toString());
+              }, 1000);
+            }, 10000);
+          }
           
           // 랜덤 회전 각도 (-30도 ~ +30도) - 더 큰 범위
           const randomRotate = (Math.random() - 0.5) * 60;
@@ -802,18 +900,28 @@
           itemEl.style.left = '0';
           itemEl.style.top = '0';
           
-          // 물리 시뮬레이션 데이터 초기화
+          // 물리 시뮬레이션 데이터 초기화 (생성 시간 포함)
+          const birthTime = Date.now(); // 시뮬레이션 시작 시점
+          
+          // 초기 활동성 계산 (나이에 따라)
+          let initialActivity = 1.0;
+          if (ageInSeconds > 300) { // 5분 = 300초
+            initialActivity = Math.max(0, 1 - (ageInSeconds - 300) / 300);
+          }
+          
           const itemData = {
             element: itemEl,
             x: randomX,
             y: randomY,
             rotate: randomRotate,
-            vx: (Math.random() - 0.5) * 0.2, // 초기 속도 줄임 (0.8 → 0.2)
-            vy: (Math.random() - 0.5) * 0.2,
+            vx: (Math.random() - 0.5) * 0.8 * initialActivity, // 나이에 따라 초기 속도 조정
+            vy: (Math.random() - 0.5) * 0.8 * initialActivity,
             radius: itemSize / 2,
             bounceTime: 0, // 튕김 효과 지속 시간
             bounceForce: { x: 0, y: 0 }, // 튕김 힘
-            isHovered: false // hover 상태
+            isHovered: false, // hover 상태
+            birthTime: birthTime, // 생성 시점
+            age: ageInSeconds // 아이템의 실제 나이 (초)
           };
           
           // hover 이벤트 리스너
@@ -828,7 +936,7 @@
         });
         
         // 오버레이 라인 자동 전환 시작 (현재 크기 정보 전달)
-        startOverlayRotation(archiveItems, sortedData, maxImgSize);
+        startOverlayRotation(archiveItems, sortedData, maxImgSizeVw);
         
         // 물리 시뮬레이션 시작
         if (items.length > 0) {
@@ -893,7 +1001,7 @@
     }
     
     // 오버레이 라인과 선택지 정보 추가
-    function addOverlayToItem(itemElement, itemData, overlayLineNum, maxImgSize) {
+    function addOverlayToItem(itemElement, itemData, overlayLineNum, maxImgSizeVw) {
       // 오버레이 라인 선택 (1~5)
       const overlayLinePath = `archive/overlay_line${overlayLineNum}.svg`;
       
@@ -976,14 +1084,15 @@
         : '';
       
       // 폰트 크기 동적 계산 (그래픽 크기에 비례하되 텍스트가 과도하게 커지지 않도록)
-      // 250px를 기준으로 하되, 그래픽 크기 변화에 텍스트는 더 작게 반응 (0.6배)
-      const baseFontSize = 250; // 기준 그래픽 크기
+      // vw 기준으로 계산 (화면 비례)
+      // 20vw를 기준으로 하되, 그래픽 크기 변화에 텍스트는 더 작게 반응 (0.6배)
+      const baseFontSizeVw = 20; // 기준 그래픽 크기 (vw)
       const fontSizeRatio = 0.6; // 텍스트 변화 비율 (그래픽보다 작게)
-      const normalizedScale = 1 + (maxImgSize - baseFontSize) / baseFontSize * fontSizeRatio;
-      // 실제 픽셀 크기로 계산
-      const baseFontSizePx = window.innerWidth * 0.007; // 0.7vw를 픽셀로 변환
-      const overlayFontSizePx = baseFontSizePx * normalizedScale * 0.9;
-      const overlayFontSize = `${overlayFontSizePx}px`;
+      const normalizedScale = 1 + (maxImgSizeVw - baseFontSizeVw) / baseFontSizeVw * fontSizeRatio;
+      // vw 단위로 계산 (화면 비례)
+      const baseFontSizeVwValue = 0.7; // 기준 폰트 크기 (vw)
+      const overlayFontSizeVw = baseFontSizeVwValue * normalizedScale * 0.9;
+      const overlayFontSize = `${overlayFontSizeVw}vw`;
       
       // 오버레이 HTML 생성 (선택지가 있을 때만)
       let overlayHTML = '';
@@ -1005,7 +1114,7 @@
     // 오버레이 자동 전환
     let overlayRotationInterval = null;
     
-    function startOverlayRotation(archiveItems, sortedData, maxImgSize) {
+    function startOverlayRotation(archiveItems, sortedData, maxImgSizeVw) {
       // 기존 인터벌 정리
       if (overlayRotationInterval) {
         clearInterval(overlayRotationInterval);
@@ -1016,15 +1125,15 @@
       }
       
       // 최초 오버레이 추가
-      rotateOverlay(archiveItems, sortedData, maxImgSize);
+      rotateOverlay(archiveItems, sortedData, maxImgSizeVw);
       
       // 4초마다 오버레이 전환
       overlayRotationInterval = setInterval(() => {
-        rotateOverlay(archiveItems, sortedData, maxImgSize);
+        rotateOverlay(archiveItems, sortedData, maxImgSizeVw);
       }, 4000);
     }
     
-    function rotateOverlay(archiveItems, sortedData, maxImgSize) {
+    function rotateOverlay(archiveItems, sortedData, maxImgSizeVw) {
       // 기존 오버레이 제거
       archiveItems.forEach(item => {
         const existingOverlay = item.querySelector('.overlay-line-wrapper');
@@ -1040,7 +1149,7 @@
       const randomOverlayLine = Math.floor(Math.random() * 5) + 1;
       
       if (randomItem && correspondingData) {
-        addOverlayToItem(randomItem, correspondingData, randomOverlayLine, maxImgSize);
+        addOverlayToItem(randomItem, correspondingData, randomOverlayLine, maxImgSizeVw);
       }
     }
     
@@ -1067,13 +1176,43 @@
       
       function updatePhysics() {
         // 각 아이템 위치 업데이트
-        const time = Date.now() / 1000; // 시간을 forEach 밖에서 계산
+        const currentTime = Date.now();
+        const time = currentTime / 1000; // 시간을 forEach 밖에서 계산
         
         items.forEach((item, i) => {
-          // 튕김 힘 감소 (댐핑)
+          // 아이템의 나이 계산 (시뮬레이션 시작 후 경과 시간)
+          const itemAge = (currentTime - item.birthTime) / 1000; // 초 단위
+          const totalAge = item.age + itemAge; // 실제 나이 + 시뮬레이션 나이
+          
+          // 활동성 계산 (시간이 지날수록 감소)
+          // 0~5분: 활발 (1.0), 5~10분: 중간 (0.5~1.0), 10분 이후: 정지 (0.0)
+          let activity = 1.0;
+          if (totalAge > 300) { // 5분 = 300초
+            activity = Math.max(0, 1 - (totalAge - 300) / 300); // 5분 후부터 점점 감소, 10분에 0
+          }
+          
+          // 활동성이 매우 낮으면 거의 정지
+          if (activity < 0.1) {
+            activity = 0;
+            // 바닥에 정착 (아래쪽으로 이동)
+            const targetY = maxY; // 바닥
+            const damping = 0.95; // 감쇠
+            if (Math.abs(item.y - targetY) > 1) {
+              item.vy += (targetY - item.y) * 0.01; // 중력 효과
+              item.vy *= damping;
+              item.vx *= damping;
+            } else {
+              // 거의 정착
+              item.vx *= 0.9;
+              item.vy *= 0.9;
+            }
+          }
+          
+          // 튕김 힘 감소 (댐핑, 활동성에 비례)
           if (item.bounceTime > 0) {
-            item.vx += item.bounceForce.x * 0.1;
-            item.vy += item.bounceForce.y * 0.1;
+            const bounceStrength = 0.1 * activity; // 활동성에 비례하여 튕김 힘 감소
+            item.vx += item.bounceForce.x * bounceStrength;
+            item.vy += item.bounceForce.y * bounceStrength;
             item.bounceTime -= 1;
             
             if (item.bounceTime <= 0) {
@@ -1081,22 +1220,22 @@
             }
           }
           
-          // 기본 떠다니는 움직임 대폭 줄임 (충돌 시 튕김 위주로)
-          // item.vx += (Math.random() - 0.5) * 0.1; // 제거
-          // item.vy += (Math.random() - 0.5) * 0.1; // 제거
+          // 떠다니는 움직임 (활동성에 비례)
+          if (activity > 0.1) {
+            const phase = (time + i * 0.5) * 0.3;
+            const floatStrength = 0.05 * activity; // 활동성에 비례
+            item.vx += Math.sin(phase) * floatStrength;
+            item.vy += Math.cos(phase * 1.3) * floatStrength;
+          }
           
-          // 주기적인 떠다니는 움직임 줄임
-          const phase = (time + i * 0.5) * 0.3; // 0.5 → 0.3 (더 느리게)
-          item.vx += Math.sin(phase) * 0.02; // 0.08 → 0.02 (매우 작게)
-          item.vy += Math.cos(phase * 1.3) * 0.02;
+          // 중력 효과 (활동성이 낮을수록 더 강하게)
+          if (activity < 0.5) {
+            const gravity = 0.02 * (1 - activity); // 활동성이 낮을수록 중력 강함
+            item.vy += gravity; // 아래로 떨어짐
+          }
           
-          // 추가 플로팅 효과 제거 (충돌 위주로)
-          // const floatPhase = (time + i * 0.3) * 0.3;
-          // item.vx += Math.sin(floatPhase * 2) * 0.06;
-          // item.vy += Math.cos(floatPhase * 1.7) * 0.06;
-          
-          // 속도 제한 줄임
-          const maxSpeed = 0.5; // 1.5 → 0.5 (더 느리게)
+          // 속도 제한 (활동성에 비례)
+          const maxSpeed = 0.5 * activity + 0.1; // 활동성이 낮을수록 최대 속도 감소
           item.vx = Math.max(-maxSpeed, Math.min(maxSpeed, item.vx));
           item.vy = Math.max(-maxSpeed, Math.min(maxSpeed, item.vy));
           
@@ -1125,22 +1264,24 @@
             item.vx *= 0.95;
           }
           
-          // 다른 아이템과의 충돌 감지
+          // 다른 아이템과의 충돌 감지 (강화된 충돌 방지)
           for (let j = i + 1; j < items.length; j++) {
             const other = items[j];
             const dx = item.x - other.x;
             const dy = item.y - other.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            const minDistance = item.radius + other.radius;
+            // 충돌 방지를 위해 여유 공간 추가 (겹침 방지)
+            const safetyMargin = 10; // 추가 여유 공간 (픽셀)
+            const minDistance = item.radius + other.radius + safetyMargin;
             
             if (distance < minDistance && distance > 0) {
               // 충돌 발생!
               const angle = Math.atan2(dy, dx);
               const overlap = minDistance - distance;
               
-              // 아이템을 분리
-              const separationX = Math.cos(angle) * overlap * 0.5;
-              const separationY = Math.sin(angle) * overlap * 0.5;
+              // 아이템을 강제로 분리 (겹침 완전 방지)
+              const separationX = Math.cos(angle) * overlap * 0.6; // 0.5 → 0.6 (더 강하게 분리)
+              const separationY = Math.sin(angle) * overlap * 0.6;
               item.x += separationX;
               item.y += separationY;
               other.x -= separationX;
@@ -1152,24 +1293,34 @@
               const relativeSpeed = Math.cos(angle) * relativeVx + Math.sin(angle) * relativeVy;
               
               if (relativeSpeed > 0) {
-                // 튕김 힘 계산 (적당하게)
-                const bounceStrength = Math.min(relativeSpeed * 15, 10); // 20→15, 15→10으로 줄임
+                // 각 아이템의 활동성 계산
+                const itemAge = (currentTime - item.birthTime) / 1000;
+                const otherAge = (currentTime - other.birthTime) / 1000;
+                const itemTotalAge = item.age + itemAge;
+                const otherTotalAge = other.age + otherAge;
+                const itemActivity = itemTotalAge > 300 ? Math.max(0, 1 - (itemTotalAge - 300) / 300) : 1.0;
+                const otherActivity = otherTotalAge > 300 ? Math.max(0, 1 - (otherTotalAge - 300) / 300) : 1.0;
+                const avgActivity = (itemActivity + otherActivity) / 2;
+                
+                // 튕김 힘 계산 (활동성에 비례)
+                const baseBounceStrength = Math.min(relativeSpeed * 15, 10);
+                const bounceStrength = baseBounceStrength * avgActivity; // 활동성이 낮을수록 튕김 약함
                 const bounceX = Math.cos(angle) * bounceStrength;
                 const bounceY = Math.sin(angle) * bounceStrength;
                 
-                // 튕김 효과 적용 (충돌 시 튕김은 유지)
+                // 튕김 효과 적용 (활동성에 비례)
                 item.bounceForce = { x: bounceX, y: bounceY };
-                item.bounceTime = 60; // 90 → 60 (튕김 지속 시간 줄임)
-                item.vx += bounceX * 0.7; // 0.8 → 0.7
-                item.vy += bounceY * 0.7;
-                // 튕김 시 회전도 약간 줄임
-                item.rotate += (Math.random() - 0.5) * 15; // 20 → 15
+                item.bounceTime = Math.floor(60 * avgActivity); // 활동성에 비례하여 지속 시간 감소
+                item.vx += bounceX * 0.7 * itemActivity; // 활동성에 비례
+                item.vy += bounceY * 0.7 * itemActivity;
+                // 튕김 시 회전도 활동성에 비례
+                item.rotate += (Math.random() - 0.5) * 15 * itemActivity;
                 
                 other.bounceForce = { x: -bounceX, y: -bounceY };
-                other.bounceTime = 60;
-                other.vx -= bounceX * 0.7;
-                other.vy -= bounceY * 0.7;
-                other.rotate += (Math.random() - 0.5) * 15;
+                other.bounceTime = Math.floor(60 * avgActivity);
+                other.vx -= bounceX * 0.7 * otherActivity;
+                other.vy -= bounceY * 0.7 * otherActivity;
+                other.rotate += (Math.random() - 0.5) * 15 * otherActivity;
               }
             }
           }
@@ -1189,9 +1340,11 @@
             item.rotate += (Math.random() - 0.5) * 2;
           }
           
-          // 속도 감소 (마찰) - 더 크게 (더 빨리 정지)
-          item.vx *= 0.99; // 0.998 → 0.99 (더 빠르게 감소)
-          item.vy *= 0.99;
+          // 속도 감소 (마찰) - 활동성에 비례하여 감소
+          // 활동성이 높으면 천천히 감소, 낮으면 빠르게 감소
+          const friction = 0.99 + (1 - activity) * 0.008; // 0.99 ~ 0.998
+          item.vx *= friction;
+          item.vy *= friction;
           
           // 회전도 거의 변동하지 않음 (충돌 시에만 회전)
           // item.rotate += (Math.random() - 0.5) * 0.3; // 제거
@@ -1232,6 +1385,22 @@
     // 페이지 로드 시 실행
     document.addEventListener('DOMContentLoaded', function() {
       loadArchive();
+      
+      // 페이지가 로드된 후 10초 뒤에 마지막으로 본 timestamp 업데이트
+      // (새로운 아이템이 있고 애니메이션이 끝난 후에만 업데이트되도록 이미 위에서 처리됨)
+      // 하지만 페이지를 떠날 때는 현재 최신 timestamp로 업데이트
+      window.addEventListener('beforeunload', function() {
+        const archiveData = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+        if (archiveData.length > 0) {
+          const sortedData = archiveData.sort((a, b) => b.timestamp - a.timestamp);
+          const currentLatestTimestamp = sortedData[0].timestamp;
+          const lastViewedTimestamp = parseInt(localStorage.getItem(LAST_VIEWED_KEY) || '0');
+          // 현재 최신 아이템이 이미 본 것보다 최신이 아닌 경우에만 업데이트
+          if (currentLatestTimestamp <= lastViewedTimestamp) {
+            localStorage.setItem(LAST_VIEWED_KEY, currentLatestTimestamp.toString());
+          }
+        }
+      });
     });
   </script>
 </body>
