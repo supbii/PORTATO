@@ -638,6 +638,91 @@ console.log('파싱된 selections 객체:', selections);
 console.log('selections 타입:', typeof selections);
 console.log('selections 키들:', Object.keys(selections));
 
+// GitHub Pages base path 자동 감지 (즉시 실행)
+(function fixImagePathsImmediately() {
+  function getBasePath() {
+    const path = window.location.pathname;
+    const pathParts = path.split('/').filter(p => p);
+    
+    if (pathParts.length === 1 && pathParts[0].endsWith('.html')) {
+      return '/';
+    }
+    
+    if (pathParts.length > 1) {
+      const lastPart = pathParts[pathParts.length - 1];
+      if (lastPart.endsWith('.html')) {
+        return '/' + pathParts.slice(0, -1).join('/') + '/';
+      }
+      return '/' + pathParts.join('/') + '/';
+    }
+    
+    return '/';
+  }
+  
+  function resolvePath(relativePath) {
+    if (!relativePath) return relativePath;
+    if (relativePath.startsWith('http://') || relativePath.startsWith('https://') || relativePath.startsWith('data:')) {
+      return relativePath;
+    }
+    
+    const basePath = getBasePath();
+    
+    if (relativePath.startsWith('/')) {
+      if (basePath !== '/') {
+        const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+        const cleanRelativePath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+        return cleanBasePath + '/' + cleanRelativePath;
+      }
+      return relativePath;
+    }
+    
+    const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+    return cleanBasePath + '/' + relativePath;
+  }
+  
+  // DOM이 준비되면 즉시 실행
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      fixPaths();
+    });
+  } else {
+    fixPaths();
+  }
+  
+  function fixPaths() {
+    const basePath = getBasePath();
+    console.log('🔍 [즉시 실행] Base path 감지:', basePath);
+    
+    // 모든 img 태그의 src 경로 수정
+    document.querySelectorAll('img[src]').forEach(img => {
+      const originalSrc = img.getAttribute('src');
+      if (originalSrc && !originalSrc.startsWith('http') && !originalSrc.startsWith('data:')) {
+        const resolvedPath = resolvePath(originalSrc);
+        if (img.src !== resolvedPath) {
+          img.src = resolvedPath;
+          console.log(`🔄 [즉시 실행] 이미지 경로 수정: ${originalSrc} → ${resolvedPath}`);
+        }
+      }
+    });
+    
+    // CSS background 이미지도 수정
+    const bgElements = [document.querySelector('.bg'), document.getElementById('bgLayer')];
+    bgElements.forEach(el => {
+      if (el) {
+        const bgImage = window.getComputedStyle(el).backgroundImage;
+        if (bgImage && bgImage !== 'none' && bgImage.includes('result/')) {
+          const urlMatch = bgImage.match(/url\(["']?([^"']+)["']?\)/);
+          if (urlMatch && urlMatch[1]) {
+            const resolvedPath = resolvePath(urlMatch[1]);
+            el.style.backgroundImage = `url("${resolvedPath}")`;
+            console.log(`🔄 [즉시 실행] 배경 이미지 경로 수정: ${urlMatch[1]} → ${resolvedPath}`);
+          }
+        }
+      }
+    });
+  }
+})();
+
 // GitHub Pages base path 자동 감지
 function getBasePath() {
   const path = window.location.pathname;
@@ -670,17 +755,28 @@ function getBasePath() {
 
 // 상대 경로를 절대 경로로 변환 (GitHub Pages 호환)
 function resolvePath(relativePath) {
+  if (!relativePath) return relativePath;
+  
   // 이미 절대 경로인 경우 그대로 반환
-  if (relativePath.startsWith('/') || relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://') || relativePath.startsWith('data:')) {
     return relativePath;
   }
+  
   // base path 추가
   const basePath = getBasePath();
-  // base path가 '/'이고 상대 경로가 이미 '/'로 시작하지 않으면 그대로
-  if (basePath === '/' && !relativePath.startsWith('/')) {
-    return '/' + relativePath;
+  
+  // 이미 절대 경로로 시작하는 경우 (/) 
+  if (relativePath.startsWith('/')) {
+    // base path가 '/'가 아니면 base path를 앞에 추가
+    if (basePath !== '/') {
+      const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+      const cleanRelativePath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+      return cleanBasePath + '/' + cleanRelativePath;
+    }
+    return relativePath;
   }
-  // base path 제거 (중복 방지)
+  
+  // 상대 경로인 경우
   const cleanBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
   return cleanBasePath + '/' + relativePath;
 }
@@ -2100,34 +2196,40 @@ function showQRForDataURL(dataURL){
     console.log('ticketContent 요소:', ticketContent);
     console.log('selections 객체:', selections);
     
-    // GitHub Pages 호환: HTML의 img 태그 src 경로 자동 수정
-    const ticketImages = ['ticketBack', 'forestImg', 'leftCircle', 'leftSwirl', 'rightCircle'];
-    ticketImages.forEach(imgId => {
-      const imgEl = document.getElementById(imgId);
-      if (imgEl && imgEl.src) {
-        // 현재 src가 상대 경로인 경우만 수정
-        const currentSrc = imgEl.getAttribute('src');
-        if (currentSrc && !currentSrc.startsWith('http') && !currentSrc.startsWith('data:')) {
-          imgEl.src = resolvePath(currentSrc);
-          console.log(`🔄 ${imgId} 경로 수정: ${currentSrc} → ${resolvePath(currentSrc)}`);
+    // GitHub Pages 호환: 모든 img 태그의 src 경로 자동 수정
+    function fixImagePaths() {
+      const basePath = getBasePath();
+      console.log('🔍 Base path 감지:', basePath);
+      
+      // 모든 img 태그의 src 경로 수정
+      document.querySelectorAll('img[src]').forEach(img => {
+        const originalSrc = img.getAttribute('src');
+        if (originalSrc && !originalSrc.startsWith('http') && !originalSrc.startsWith('data:')) {
+          const resolvedPath = resolvePath(originalSrc);
+          img.src = resolvedPath;
+          console.log(`🔄 이미지 경로 수정: ${originalSrc} → ${resolvedPath}`);
         }
-      }
-    });
-    
-    // CSS background 이미지도 수정
-    const bgElements = [document.querySelector('.bg'), document.getElementById('bgLayer')];
-    bgElements.forEach(el => {
-      if (el) {
-        const bgImage = window.getComputedStyle(el).backgroundImage;
-        if (bgImage && bgImage.includes('result/')) {
-          const urlMatch = bgImage.match(/url\(["']?([^"']+)["']?\)/);
-          if (urlMatch && urlMatch[1] && !urlMatch[1].startsWith('http')) {
-            el.style.backgroundImage = `url("${resolvePath(urlMatch[1])}")`;
-            console.log(`🔄 배경 이미지 경로 수정: ${urlMatch[1]} → ${resolvePath(urlMatch[1])}`);
+      });
+      
+      // CSS background 이미지도 수정
+      const bgElements = [document.querySelector('.bg'), document.getElementById('bgLayer')];
+      bgElements.forEach(el => {
+        if (el) {
+          const bgImage = window.getComputedStyle(el).backgroundImage;
+          if (bgImage && bgImage !== 'none' && bgImage.includes('result/')) {
+            const urlMatch = bgImage.match(/url\(["']?([^"']+)["']?\)/);
+            if (urlMatch && urlMatch[1]) {
+              const resolvedPath = resolvePath(urlMatch[1]);
+              el.style.backgroundImage = `url("${resolvedPath}")`;
+              console.log(`🔄 배경 이미지 경로 수정: ${urlMatch[1]} → ${resolvedPath}`);
+            }
           }
         }
-      }
-    });
+      });
+    }
+    
+    // 즉시 경로 수정 실행
+    fixImagePaths();
     
     // 장소에 따른 배경 이미지 설정
     if (selections.place && forestImgEl) {
