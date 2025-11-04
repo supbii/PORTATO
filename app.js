@@ -248,7 +248,7 @@
 
   // 상/하 사분면에 따라 텍스트 위치(상단/하단) 정렬, 좌/우 사분면에 따라 정렬 방향 반전
   // 오버랩 구간(50%)을 정확히 계산하여 텍스트 영역 제한
-  function positionRefText(quad){
+  function positionRefText(quad, opt){
     if(!refText || !refTextTitle || !refTextBody || !refWrap || !imgPlate) return;
     
     // 좌/우 반전: 오른쪽 사분면(NE/SE)은 오른쪽 정렬, 왼쪽 사분면(NW/SW)은 왼쪽 정렬
@@ -298,13 +298,15 @@
       if (isRightSide) {
         // 오른쪽 써클: 오른쪽 여백 크게, 왼쪽 여백 더 작게
         refText.style.padding = `22% ${largeEdgePadding} 10% ${smallEdgePadding}`;
-        // 우측 하단 제목을 오른쪽으로 당기기 (라디얼과 거리 확보)
-        refTextTitle.style.transform = 'translateX(2vw)';
+        // 우측 하단 제목: "몽환적 음색"(impression)만 더 멀리 이동
+        const isImpression = opt?.value === 'impression';
+        refTextTitle.style.transform = isImpression ? 'translateX(4.5vw)' : 'translateX(2vw)';
       } else {
         // 왼쪽 써클: 왼쪽 여백 크게, 오른쪽 여백 더 작게
         refText.style.padding = `22% ${smallEdgePadding} 10% ${largeEdgePadding}`;
-        // 좌측 하단 제목을 왼쪽으로 당기기 (라디얼과 거리 확보)
-        refTextTitle.style.transform = 'translateX(-2vw)';
+        // 좌측 하단 제목: "자유로운 형식"(post)만 더 멀리 이동
+        const isPost = opt?.value === 'post';
+        refTextTitle.style.transform = isPost ? 'translateX(-4.5vw)' : 'translateX(-2vw)';
       }
     }
     
@@ -357,38 +359,9 @@
   function loadIntrinsic(el){
     return new Promise(resolve=>{
       if(!el) return resolve({w:100,h:100});
-      if(el.complete && el.naturalWidth && el.naturalWidth > 0 && el.naturalHeight > 0) {
-        return resolve({w:el.naturalWidth,h:el.naturalHeight});
-      }
-      // 이미지가 로드 중이면 기다림
-      const timeout = setTimeout(()=>{
-        el.removeEventListener('load', onl);
-        el.removeEventListener('error', one);
-        console.warn('이미지 로딩 타임아웃:', el.src);
-        resolve({w:el.naturalWidth || 200, h:el.naturalHeight || 200});
-      }, 10000); // 10초 타임아웃
-      const onl = function(){ 
-        clearTimeout(timeout);
-        el.removeEventListener('load', onl); 
-        el.removeEventListener('error', one);
-        resolve({w:el.naturalWidth,h:el.naturalHeight}); 
-      };
-      const one = function(){ 
-        clearTimeout(timeout);
-        el.removeEventListener('load', onl); 
-        el.removeEventListener('error', one);
-        console.error('이미지 로딩 실패:', el.src);
-        resolve({w:200,h:200}); 
-      };
-      el.addEventListener('load', onl);
-      el.addEventListener('error', one);
-      // 이미지가 아직 시작되지 않았다면 강제로 로드
-      if(el.src && !el.complete) {
-        // 이미지 로딩 강제 재시도
-        const src = el.src;
-        el.src = '';
-        el.src = src;
-      }
+      if(el.complete && el.naturalWidth) return resolve({w:el.naturalWidth,h:el.naturalHeight});
+      el.addEventListener('load', function onl(){ el.removeEventListener('load', onl); resolve({w:el.naturalWidth,h:el.naturalHeight}); });
+      el.addEventListener('error', function one(){ el.removeEventListener('error', one); resolve({w:200,h:200}); });
     });
   }
 
@@ -404,7 +377,7 @@
     const screenH = window.innerHeight;
 
     // Make line fill horizontally (user wanted line to fit width) with margin
-    const LINE_FILL_RATIO = 0.94;
+    const LINE_FILL_RATIO = 0.88;
     let targetLinePx = Math.round(screenW * LINE_FILL_RATIO);
 
     // scale based on line intrinsic width; cap by height
@@ -420,14 +393,9 @@
       if(!el || !info) return;
       el.style.width = Math.round(info.w * scale) + 'px';
       el.style.height = Math.round(info.h * scale) + 'px';
-      // GitHub Pages에서 중앙 정렬을 보장하기 위해 명시적으로 설정
-      el.style.position = 'absolute';
       el.style.left = '50%';
       el.style.top  = '50%';
       el.style.transform = 'translate(-50%,-50%)';
-      el.style.transformOrigin = '50% 50%';
-      el.style.margin = '0';
-      el.style.display = 'block';
     });
 
     // hover images same scale & center
@@ -437,14 +405,9 @@
       if(!el || !info) return;
       el.style.width = Math.round(info.w * scale * 1.013) + 'px';
       el.style.height = Math.round(info.h * scale * 1.013) + 'px';
-      // GitHub Pages에서 중앙 정렬을 보장하기 위해 명시적으로 설정
-      el.style.position = 'absolute';
       el.style.left = '50%';
       el.style.top  = '50%';
       el.style.transform = 'translate(-50%,-50%)';
-      el.style.transformOrigin = '50% 50%';
-      el.style.margin = '0';
-      el.style.display = 'block';
       el.classList.remove('is-active');
     });
 
@@ -458,13 +421,9 @@
       // innerplate 크기와 정확히 동일하게 설정
       innerplateHoverImg.style.width = Math.round(inr.w * scale) + 'px';
       innerplateHoverImg.style.height = Math.round(inr.h * scale) + 'px';
-      // GitHub Pages에서 중앙 정렬을 보장하기 위해 명시적으로 설정
-      innerplateHoverImg.style.position = 'absolute';
       innerplateHoverImg.style.left = '50%';
       innerplateHoverImg.style.top = '50%';
       innerplateHoverImg.style.transform = 'translate(-50%,-50%)';
-      innerplateHoverImg.style.transformOrigin = '50% 50%';
-      innerplateHoverImg.style.margin = '0';
     }
     overlay.style.height = overlayPx + 'px';
     overlay.style.left = '50%';
@@ -472,9 +431,6 @@
     overlay.style.transform = 'translate(-50%,-50%)';
     overlay.setAttribute('viewBox','0 0 800 800');
 
-    // 이미지가 실제로 렌더링될 때까지 약간 대기 (GitHub Pages 환경에서 필요)
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
     // compute plate/inner bounds to place labels between them
     const plateRect = imgPlate.getBoundingClientRect();
     const innerRect = imgInner.getBoundingClientRect();
@@ -580,7 +536,7 @@
         positionRefCircle(q);
         setRefCircleOverlay(opt, q);
         showRefText(opt);
-        positionRefText(q);
+        positionRefText(q, opt);
         // 라디얼 위에 색상 오버레이 표시 (mood, flow, extras 호버 시)
         showRadialOverlay(opt);
       });
@@ -601,7 +557,7 @@
         positionRefCircle(def.quad);
         setRefCircleOverlay(opt, def.quad);
         showRefText(opt);
-        positionRefText(def.quad);
+        positionRefText(def.quad, opt);
         // 라디얼 위에 색상 오버레이 표시 (mood, flow, extras 호버 시)
         showRadialOverlay(opt);
       });
@@ -770,7 +726,7 @@
     // 서브 질문 아래로 더 내려 배치 (간격 확대)
     backImg.style.setProperty('top', '135%', 'important');
     // 크기 (1~4단계 이전 버튼과 동일 비율로 통일)
-    const backW = (window.innerWidth <= 768 ? '12vw' : '6vw');
+    const backW = (window.innerWidth <= 768 ? '10vw' : '5vw');
     backImg.style.setProperty('width', backW, 'important');
     backImg.style.height = 'auto';
     backImg.style.cursor = 'pointer';
@@ -815,11 +771,11 @@
     completeImg.style.position = 'absolute';
     // 이전 버튼 오른쪽에 배치 (동일한 수직 위치, 동일한 크기)
     const isMobile = window.innerWidth <= 768;
-    const backWidth = isMobile ? 12 : 6; // vw
+    const backWidth = isMobile ? 10 : 5; // vw
     const gap = isMobile ? 1.5 : 1;      // vw (더 가깝게)
     completeImg.style.left = `calc(${backWidth}vw + ${gap}vw)`;
     completeImg.style.setProperty('top', '135%', 'important');
-    completeImg.style.setProperty('width', (isMobile ? '12vw' : '6vw'), 'important');
+    completeImg.style.setProperty('width', (isMobile ? '10vw' : '5vw'), 'important');
     completeImg.style.cursor = 'pointer';
     completeImg.style.zIndex = '1400';
     completeImg.style.opacity = '0.5'; // 비활성화 상태
@@ -949,7 +905,7 @@ function renderStep() {
     backImg.style.left = '0';
     // 간섭 방지를 위해 !important로 강제 적용
     backImg.style.setProperty('top', '135%', 'important');
-    backImg.style.setProperty('width', (window.innerWidth <= 768 ? '12vw' : '6vw'), 'important');
+    backImg.style.setProperty('width', (window.innerWidth <= 768 ? '10vw' : '5vw'), 'important');
     backImg.style.cursor = 'pointer';
     backImg.style.zIndex = '1400';
     backImg.style.pointerEvents = 'auto'; // 부모의 pointer-events: none을 무시
