@@ -42,10 +42,14 @@ body {
     position: absolute;
     top: 60%;
     left: 65%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) !important; /* 위치 절대 고정 */
     opacity: 0;
     animation: fadeIn 1.5s forwards;
     animation-delay: 0.5s;
+    animation-fill-mode: forwards; /* 애니메이션 완료 후 상태 유지 */
+    will-change: opacity; /* transform은 변경하지 않음 */
+    z-index: 100; /* 로고가 다른 요소 위에 표시되도록 */
+    pointer-events: none; /* 로고는 클릭 이벤트를 방해하지 않음 */
 }
 
 /* 화살표 컨테이너: 로고 아래에 배치 */
@@ -62,9 +66,13 @@ body {
 }
 
 @keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%); /* 시작 위치도 동일하게 유지 */
+    }
     to {
         opacity: 1;
-        transform: translate(-50%, -50%); /* 로고용 - 중앙 정렬 */
+        transform: translate(-50%, -50%) !important; /* 로고용 - 중앙 정렬, 위치는 절대 변경 안됨 */
     }
 }
 
