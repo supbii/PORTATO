@@ -6,6 +6,150 @@
 */
 
 (function(){
+  // 장소별 오디오 파일 경로 매핑
+  const PLACE_SOUNDS = {
+    'forest': 'radial/forest_sound.mp3',   // 숲속
+    'valley': 'radial/valley_sound.mp3',   // 계곡
+    'sea': 'radial/sea_sound.mp3',         // 바닷가
+    'lawn': 'radial/lawn_sound.mp3'       // 들판
+  };
+
+  // 사운드 재생 관련 변수
+  let currentSoundAudio = null;
+  let selectedPlace = null;
+  let soundStartTime = null;
+  let volumeFadeInterval = null;
+  const FADE_DURATION = 30000; // 30초 동안 볼륨 감소
+  const INITIAL_VOLUME = 0.5; // 초기 볼륨 (0-1)
+  const MIN_VOLUME = 0.05; // 최소 볼륨
+
+  // 장소 선택지 호버 시 사운드 재생
+  function playPlaceSound(placeValue) {
+    // 첫 번째 질문(place)이 아니거나 이미 선택된 경우 무시
+    if (stepIndex !== 0 || selectedPlace) return;
+
+    const audioPath = PLACE_SOUNDS[placeValue];
+    if (!audioPath) return;
+
+    // 기존 사운드 중지
+    if (currentSoundAudio) {
+      try {
+        currentSoundAudio.pause();
+        currentSoundAudio.currentTime = 0;
+      } catch (e) {}
+      currentSoundAudio = null;
+    }
+
+    // HTML5 Audio 객체 생성
+    try {
+      currentSoundAudio = new Audio(audioPath);
+      currentSoundAudio.loop = true;
+      currentSoundAudio.volume = INITIAL_VOLUME;
+      
+      // 재생 시도 (사용자 상호작용이 필요한 경우를 대비)
+      const playPromise = currentSoundAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.warn('사운드 자동 재생 실패 (사용자 상호작용 필요):', error);
+        });
+      }
+    } catch (e) {
+      console.error('사운드 로드 실패:', e);
+      currentSoundAudio = null;
+    }
+  }
+
+  // 선택 후 사운드 계속 재생 (시간에 따라 볼륨 감소)
+  function continuePlaceSound(placeValue) {
+    selectedPlace = placeValue;
+    
+    // 이미 같은 사운드가 재생 중이면 볼륨 페이드만 시작
+    if (currentSoundAudio && currentSoundAudio.src.includes(PLACE_SOUNDS[placeValue])) {
+      soundStartTime = Date.now();
+      startVolumeFade();
+      return;
+    }
+
+    // 사운드가 재생 중이 아니면 재생 시작
+    const audioPath = PLACE_SOUNDS[placeValue];
+    if (!audioPath) return;
+
+    // 기존 사운드 중지
+    if (currentSoundAudio) {
+      try {
+        currentSoundAudio.pause();
+        currentSoundAudio.currentTime = 0;
+      } catch (e) {}
+    }
+
+    // HTML5 Audio 객체 생성
+    try {
+      currentSoundAudio = new Audio(audioPath);
+      currentSoundAudio.loop = true;
+      currentSoundAudio.volume = INITIAL_VOLUME;
+      
+      // 재생 시도
+      const playPromise = currentSoundAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          soundStartTime = Date.now();
+          startVolumeFade();
+        }).catch(error => {
+          console.warn('사운드 재생 실패 (사용자 상호작용 필요):', error);
+        });
+      }
+    } catch (e) {
+      console.error('사운드 로드 실패:', e);
+      currentSoundAudio = null;
+    }
+  }
+
+  // 볼륨 페이드 아웃 시작
+  function startVolumeFade() {
+    if (volumeFadeInterval) {
+      clearInterval(volumeFadeInterval);
+    }
+
+    volumeFadeInterval = setInterval(() => {
+      if (!currentSoundAudio) return;
+
+      const elapsed = Date.now() - soundStartTime;
+      const progress = Math.min(elapsed / FADE_DURATION, 1);
+      
+      // 선형 감소: INITIAL_VOLUME에서 MIN_VOLUME까지
+      const currentVolume = INITIAL_VOLUME - (INITIAL_VOLUME - MIN_VOLUME) * progress;
+      
+      try {
+        currentSoundAudio.volume = Math.max(MIN_VOLUME, currentVolume);
+      } catch (e) {
+        console.error('볼륨 설정 실패:', e);
+      }
+
+      // 최소 볼륨에 도달하면 인터벌 정리
+      if (progress >= 1) {
+        clearInterval(volumeFadeInterval);
+        volumeFadeInterval = null;
+      }
+    }, 100); // 100ms마다 볼륨 업데이트
+  }
+
+  // 사운드 정지
+  function stopPlaceSound() {
+    if (currentSoundAudio) {
+      try {
+        currentSoundAudio.pause();
+        currentSoundAudio.currentTime = 0;
+      } catch (e) {}
+      currentSoundAudio = null;
+    }
+    if (volumeFadeInterval) {
+      clearInterval(volumeFadeInterval);
+      volumeFadeInterval = null;
+    }
+    selectedPlace = null;
+    soundStartTime = null;
+  }
+
   // Steps data: 각 단계에서 options 배열은 화면의 사분면 순서(NE, NW, SE, SW)로 대응됩니다.
   const steps = [
     {
@@ -539,6 +683,10 @@
         positionRefText(q, opt);
         // 라디얼 위에 색상 오버레이 표시 (mood, flow, extras 호버 시)
         showRadialOverlay(opt);
+        // 장소 선택지 호버 시 사운드 재생 (첫 번째 질문일 때만)
+        if (stepIndex === 0 && opt && opt.value) {
+          playPlaceSound(opt.value);
+        }
       });
       p.addEventListener('pointerout', ()=>{
         hideAllHover();
@@ -547,6 +695,10 @@
         hideSideHint();
         clearRefCircle();
         hideRadialOverlay();
+        // 장소 선택지 호버 해제 시 사운드 정지 (선택 전에만)
+        if (stepIndex === 0 && !selectedPlace && currentSoundAudio) {
+          stopPlaceSound();
+        }
       });
       p.addEventListener('focus', ()=>{
         hideAllHover();
@@ -580,6 +732,10 @@
           console.log(`단계 ID: ${steps[stepIndex].id}`);
           console.log(`선택된 값: ${val}`);
           console.log(`현재 selections:`, selections);
+          // 장소 선택 시 사운드 계속 재생 (시간에 따라 볼륨 감소)
+          if (stepIndex === 0 && opt && opt.value) {
+            continuePlaceSound(opt.value);
+          }
         }
         // advance step
         if (stepIndex < steps.length - 1) {
@@ -932,6 +1088,11 @@ function renderStep() {
   // initial render + responsive
   window.addEventListener('load', ()=> { renderStep(); });
   window.addEventListener('resize', debounce(()=> layoutAll(), 120));
+  
+  // 페이지를 떠날 때 사운드 정지
+  window.addEventListener('beforeunload', () => {
+    stopPlaceSound();
+  });
 
   // small helper
   function debounce(fn, wait){ let t; return function(){ clearTimeout(t); t = setTimeout(()=> fn.apply(this, arguments), wait); }; }
