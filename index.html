@@ -46,6 +46,20 @@
 
 <script>
 window.addEventListener('load', function() {
+    // 로고 컨테이너 위치 고정 (애니메이션 완료 후)
+    const logoContainer = document.querySelector('.landing-logo-container');
+    if (logoContainer) {
+        // 애니메이션 완료 후 위치를 절대 고정
+        logoContainer.addEventListener('animationend', function() {
+            logoContainer.style.transform = 'translate(-50%, -50%)';
+            logoContainer.style.animation = 'none'; // 애니메이션 재실행 방지
+            logoContainer.style.willChange = 'auto'; // 최적화 해제
+        }, { once: true });
+        
+        // 초기 위치도 즉시 설정 (애니메이션 대기 시간 동안도 고정)
+        logoContainer.style.transform = 'translate(-50%, -50%)';
+    }
+    
     const button = document.querySelector('.landing-next-button');
     const svgElement = document.querySelector('.landing-next-arrow');
     
@@ -174,12 +188,24 @@ window.addEventListener('load', function() {
         initialCircleLeft = null; // 리사이즈 시 초기 위치 재계산
         initialCircleTop = null;
         updateCirclePosition();
+        
+        // 로고 위치도 리사이즈 시 유지 (절대 변경 안됨)
+        if (logoContainer) {
+            logoContainer.style.transform = 'translate(-50%, -50%)';
+        }
     });
     
     let timers = [];
     let pulseAnimationId = null;
     
     button.addEventListener('mouseenter', function() {
+        // 로고 위치 고정 확인 (호버 시에도 변경되지 않도록)
+        if (logoContainer) {
+            logoContainer.style.transform = 'translate(-50%, -50%)';
+            logoContainer.style.opacity = '1'; // 호버 시에도 로고가 보이도록
+            logoContainer.style.visibility = 'visible';
+        }
+        
         // 원 위치 업데이트
         updateCirclePosition();
         
@@ -424,6 +450,13 @@ window.addEventListener('load', function() {
     });
     
     button.addEventListener('mouseleave', function() {
+        // 로고 위치 고정 확인 (호버 해제 시에도 변경되지 않도록)
+        if (logoContainer) {
+            logoContainer.style.transform = 'translate(-50%, -50%)';
+            logoContainer.style.opacity = '1'; // 호버 해제 시에도 로고가 보이도록
+            logoContainer.style.visibility = 'visible';
+        }
+        
         timers.forEach(function(t) { clearTimeout(t); });
         timers = [];
         
