@@ -913,8 +913,8 @@
           
           // 초기 활동성 계산 (나이에 따라)
           let initialActivity = 1.0;
-          if (ageInSeconds > 300) { // 5분 = 300초
-            initialActivity = Math.max(0, 1 - (ageInSeconds - 300) / 300);
+          if (ageInSeconds > 600) { // 10분 = 600초 (더 늦게 감소 시작)
+            initialActivity = Math.max(0, 1 - (ageInSeconds - 600) / 600); // 10분 후부터 감소, 20분에 0
           }
           
           const itemData = {
@@ -922,8 +922,8 @@
             x: randomX,
             y: randomY,
             rotate: randomRotate,
-            vx: (Math.random() - 0.5) * 0.8 * initialActivity, // 나이에 따라 초기 속도 조정
-            vy: (Math.random() - 0.5) * 0.8 * initialActivity,
+            vx: (Math.random() - 0.5) * 1.8 * initialActivity, // 초기 속도 증가 (0.8 → 1.8)
+            vy: (Math.random() - 0.5) * 1.8 * initialActivity,
             radius: itemSize / 2,
             bounceTime: 0, // 튕김 효과 지속 시간
             bounceForce: { x: 0, y: 0 }, // 튕김 힘
@@ -1193,10 +1193,10 @@
           const totalAge = item.age + itemAge; // 실제 나이 + 시뮬레이션 나이
           
           // 활동성 계산 (시간이 지날수록 감소)
-          // 0~5분: 활발 (1.0), 5~10분: 중간 (0.5~1.0), 10분 이후: 정지 (0.0)
+          // 0~10분: 활발 (1.0), 10~20분: 중간 (0.5~1.0), 20분 이후: 정지 (0.0)
           let activity = 1.0;
-          if (totalAge > 300) { // 5분 = 300초
-            activity = Math.max(0, 1 - (totalAge - 300) / 300); // 5분 후부터 점점 감소, 10분에 0
+          if (totalAge > 600) { // 10분 = 600초 (더 늦게 감소 시작)
+            activity = Math.max(0, 1 - (totalAge - 600) / 600); // 10분 후부터 점점 감소, 20분에 0
           }
           
           // 활동성이 매우 낮으면 거의 정지
@@ -1218,7 +1218,7 @@
           
           // 튕김 힘 감소 (댐핑, 활동성에 비례)
           if (item.bounceTime > 0) {
-            const bounceStrength = 0.1 * activity; // 활동성에 비례하여 튕김 힘 감소
+            const bounceStrength = 0.25 * activity; // 활동성에 비례하여 튕김 힘 감소 (0.1 → 0.25)
             item.vx += item.bounceForce.x * bounceStrength;
             item.vy += item.bounceForce.y * bounceStrength;
             item.bounceTime -= 1;
@@ -1231,7 +1231,7 @@
           // 떠다니는 움직임 (활동성에 비례)
           if (activity > 0.1) {
             const phase = (time + i * 0.5) * 0.3;
-            const floatStrength = 0.05 * activity; // 활동성에 비례
+            const floatStrength = 0.15 * activity; // 활동성에 비례 (0.05 → 0.15, 더 활발하게)
             item.vx += Math.sin(phase) * floatStrength;
             item.vy += Math.cos(phase * 1.3) * floatStrength;
           }
@@ -1243,7 +1243,7 @@
           }
           
           // 속도 제한 (활동성에 비례)
-          const maxSpeed = 0.5 * activity + 0.1; // 활동성이 낮을수록 최대 속도 감소
+          const maxSpeed = 1.2 * activity + 0.3; // 활동성이 낮을수록 최대 속도 감소 (0.5 → 1.2, 더 빠르게)
           item.vx = Math.max(-maxSpeed, Math.min(maxSpeed, item.vx));
           item.vy = Math.max(-maxSpeed, Math.min(maxSpeed, item.vy));
           
@@ -1306,28 +1306,28 @@
                 const otherAge = (currentTime - other.birthTime) / 1000;
                 const itemTotalAge = item.age + itemAge;
                 const otherTotalAge = other.age + otherAge;
-                const itemActivity = itemTotalAge > 300 ? Math.max(0, 1 - (itemTotalAge - 300) / 300) : 1.0;
-                const otherActivity = otherTotalAge > 300 ? Math.max(0, 1 - (otherTotalAge - 300) / 300) : 1.0;
+                const itemActivity = itemTotalAge > 600 ? Math.max(0, 1 - (itemTotalAge - 600) / 600) : 1.0;
+                const otherActivity = otherTotalAge > 600 ? Math.max(0, 1 - (otherTotalAge - 600) / 600) : 1.0;
                 const avgActivity = (itemActivity + otherActivity) / 2;
                 
                 // 튕김 힘 계산 (활동성에 비례)
-                const baseBounceStrength = Math.min(relativeSpeed * 15, 10);
+                const baseBounceStrength = Math.min(relativeSpeed * 20, 15); // 튕김 힘 증가 (15 → 20, 10 → 15)
                 const bounceStrength = baseBounceStrength * avgActivity; // 활동성이 낮을수록 튕김 약함
                 const bounceX = Math.cos(angle) * bounceStrength;
                 const bounceY = Math.sin(angle) * bounceStrength;
                 
                 // 튕김 효과 적용 (활동성에 비례)
                 item.bounceForce = { x: bounceX, y: bounceY };
-                item.bounceTime = Math.floor(60 * avgActivity); // 활동성에 비례하여 지속 시간 감소
-                item.vx += bounceX * 0.7 * itemActivity; // 활동성에 비례
-                item.vy += bounceY * 0.7 * itemActivity;
+                item.bounceTime = Math.floor(80 * avgActivity); // 활동성에 비례하여 지속 시간 감소 (60 → 80)
+                item.vx += bounceX * 0.9 * itemActivity; // 활동성에 비례 (0.7 → 0.9)
+                item.vy += bounceY * 0.9 * itemActivity;
                 // 튕김 시 회전도 활동성에 비례
                 item.rotate += (Math.random() - 0.5) * 15 * itemActivity;
                 
                 other.bounceForce = { x: -bounceX, y: -bounceY };
-                other.bounceTime = Math.floor(60 * avgActivity);
-                other.vx -= bounceX * 0.7 * otherActivity;
-                other.vy -= bounceY * 0.7 * otherActivity;
+                other.bounceTime = Math.floor(80 * avgActivity);
+                other.vx -= bounceX * 0.9 * otherActivity;
+                other.vy -= bounceY * 0.9 * otherActivity;
                 other.rotate += (Math.random() - 0.5) * 15 * otherActivity;
               }
             }
