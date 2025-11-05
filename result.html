@@ -2049,6 +2049,29 @@ btnUseTicket.addEventListener('click', async ()=> {
       try {
         localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
         console.log('✅ 최종 저장 완료');
+        
+        // 아카이브 페이지에 새로고침 알림 (BroadcastChannel 사용)
+        try {
+          const channel = new BroadcastChannel('portato_archive');
+          channel.postMessage({ type: 'archive_updated', timestamp: Date.now() });
+          channel.close();
+          console.log('📢 아카이브 페이지에 업데이트 알림 전송');
+        } catch (channelError) {
+          console.warn('⚠️ BroadcastChannel 사용 실패:', channelError);
+        }
+        
+        // localStorage 변경 이벤트를 위한 트리거 (storage 이벤트는 다른 탭에서만 발생하므로 직접 트리거)
+        // storage 이벤트는 다른 탭/윈도우에서만 발생하므로, 직접 이벤트를 발생시킬 수 없음
+        // 대신 특별한 키를 설정하여 변경을 알림
+        try {
+          localStorage.setItem('portato_archive_updated', Date.now().toString());
+          // 즉시 삭제하여 다음 변경을 감지할 수 있도록 함
+          setTimeout(() => {
+            localStorage.removeItem('portato_archive_updated');
+          }, 100);
+        } catch (e) {
+          console.warn('⚠️ 업데이트 트리거 설정 실패:', e);
+        }
       } catch (finalError) {
         console.error('❌ 저장 실패 - 용량이 너무 큽니다:', finalError);
         alert('저장소 용량이 부족합니다. 일부 오래된 항목을 삭제해주세요.');
@@ -2058,6 +2081,13 @@ btnUseTicket.addEventListener('click', async ()=> {
     // 버튼 숨기기
     btnUseTicket.style.display = 'none';
     btnReset.style.display = 'none';
+    
+    // 티켓 발급 후: 푸터 다시 보이기
+    const siteFooter = document.querySelector('.site-footer');
+    if (siteFooter) {
+      siteFooter.style.display = 'block';
+      console.log('✅ 푸터 표시 (티켓 발급 완료)');
+    }
     
     // 헤더만 숨기기 (서브 텍스트는 새로운 것으로 교체)
     const titleBox = document.querySelector('.title-box');
@@ -2238,6 +2268,13 @@ function showQRForDataURL(dataURL){
     console.log('=== result.html 초기화 시작 ===');
     console.log('ticketContent 요소:', ticketContent);
     console.log('selections 객체:', selections);
+    
+    // 초기 상태 (드래그 단계): 푸터 숨기기
+    const siteFooter = document.querySelector('.site-footer');
+    if (siteFooter) {
+      siteFooter.style.display = 'none';
+      console.log('✅ 푸터 숨김 (드래그 단계)');
+    }
     
     // GitHub Pages 호환: HTML의 img 태그 src 경로 수정 (GitHub Pages에서만)
     if (window.location.hostname.includes('github.io')) {
