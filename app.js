@@ -19,6 +19,7 @@
   let selectedPlace = null;
   let soundStartTime = null;
   let volumeFadeInterval = null;
+  let currentPlayingPlace = null; // 현재 재생 중인 장소 선택지 (호버용)
   const FADE_DURATION = 30000; // 30초 동안 볼륨 감소
   const INITIAL_VOLUME = 0.5; // 초기 볼륨 (0-1)
   const MIN_VOLUME = 0.05; // 최소 볼륨
@@ -31,58 +32,59 @@
     const audioPath = PLACE_SOUNDS[placeValue];
     if (!audioPath) return;
 
-    // 기존 사운드 중지
-    if (currentSoundAudio) {
-      try {
-        currentSoundAudio.pause();
-        currentSoundAudio.currentTime = 0;
-      } catch (e) {}
-      currentSoundAudio = null;
+    // 같은 선택지가 이미 재생 중이면 무시
+    if (currentPlayingPlace === placeValue && currentSoundAudio && !currentSoundAudio.paused) {
+      return;
     }
 
-    // HTML5 Audio 객체 생성
+    // 기존 사운드 완전히 중지
+    stopPlaceSoundForHover();
+
+    // 새로운 사운드 재생
     try {
       currentSoundAudio = new Audio(audioPath);
       currentSoundAudio.loop = true;
       currentSoundAudio.volume = INITIAL_VOLUME;
+      currentPlayingPlace = placeValue;
       
       // 재생 시도 (사용자 상호작용이 필요한 경우를 대비)
       const playPromise = currentSoundAudio.play();
       if (playPromise !== undefined) {
-        playPromise.catch(error => {
+        playPromise.then(() => {
+          console.log('🎵 호버 사운드 재생:', placeValue);
+        }).catch(error => {
           console.warn('사운드 자동 재생 실패 (사용자 상호작용 필요):', error);
+          currentSoundAudio = null;
+          currentPlayingPlace = null;
         });
       }
     } catch (e) {
       console.error('사운드 로드 실패:', e);
       currentSoundAudio = null;
+      currentPlayingPlace = null;
     }
   }
 
   // 선택 후 사운드 계속 재생 (시간에 따라 볼륨 감소)
   function continuePlaceSound(placeValue) {
     selectedPlace = placeValue;
+    currentPlayingPlace = null; // 호버 상태 해제
     
-    // 이미 같은 사운드가 재생 중이면 볼륨 페이드만 시작
-    if (currentSoundAudio && currentSoundAudio.src.includes(PLACE_SOUNDS[placeValue])) {
-      soundStartTime = Date.now();
-      startVolumeFade();
-      return;
-    }
-
-    // 사운드가 재생 중이 아니면 재생 시작
     const audioPath = PLACE_SOUNDS[placeValue];
     if (!audioPath) return;
 
-    // 기존 사운드 중지
+    // 기존 호버 사운드 완전히 중지
     if (currentSoundAudio) {
       try {
         currentSoundAudio.pause();
         currentSoundAudio.currentTime = 0;
-      } catch (e) {}
+      } catch (e) {
+        console.warn('기존 사운드 정지 중 오류:', e);
+      }
+      currentSoundAudio = null;
     }
 
-    // HTML5 Audio 객체 생성
+    // 선택 후 사운드 재생 시작
     try {
       currentSoundAudio = new Audio(audioPath);
       currentSoundAudio.loop = true;
@@ -92,10 +94,12 @@
       const playPromise = currentSoundAudio.play();
       if (playPromise !== undefined) {
         playPromise.then(() => {
+          console.log('🎵 선택 후 사운드 재생 시작:', placeValue);
           soundStartTime = Date.now();
           startVolumeFade();
         }).catch(error => {
           console.warn('사운드 재생 실패 (사용자 상호작용 필요):', error);
+          currentSoundAudio = null;
         });
       }
     } catch (e) {
@@ -133,19 +137,45 @@
     }, 100); // 100ms마다 볼륨 업데이트
   }
 
-  // 사운드 정지
+  // 호버용 사운드 정지 (선택 전)
+  function stopPlaceSoundForHover() {
+    // 선택된 경우가 아니면 호버 사운드만 정지
+    if (!selectedPlace && currentSoundAudio) {
+      try {
+        currentSoundAudio.pause();
+        currentSoundAudio.currentTime = 0;
+      } catch (e) {
+        console.warn('호버 사운드 정지 중 오류:', e);
+      }
+      currentSoundAudio = null;
+      currentPlayingPlace = null;
+      console.log('🛑 호버 사운드 정지');
+    }
+  }
+
+  // 사운드 완전 정지 (선택 후 또는 페이지 이동 시)
   function stopPlaceSound() {
     if (currentSoundAudio) {
       try {
         currentSoundAudio.pause();
         currentSoundAudio.currentTime = 0;
-      } catch (e) {}
+      } catch (e) {
+        console.warn('사운드 정지 중 오류:', e);
+      }
       currentSoundAudio = null;
     }
     if (volumeFadeInterval) {
       clearInterval(volumeFadeInterval);
       volumeFadeInterval = null;
     }
+    currentPlayingPlace = null;
+    // selectedPlace와 soundStartTime은 선택된 경우 유지 (continuePlaceSound에서 사용)
+    // 완전 정지가 필요한 경우에만 초기화
+  }
+
+  // 완전 정지 (결과 페이지 이동 시)
+  function stopPlaceSoundCompletely() {
+    stopPlaceSound();
     selectedPlace = null;
     soundStartTime = null;
   }
@@ -696,8 +726,8 @@
         clearRefCircle();
         hideRadialOverlay();
         // 장소 선택지 호버 해제 시 사운드 정지 (선택 전에만)
-        if (stepIndex === 0 && !selectedPlace && currentSoundAudio) {
-          stopPlaceSound();
+        if (stepIndex === 0 && !selectedPlace) {
+          stopPlaceSoundForHover();
         }
       });
       p.addEventListener('focus', ()=>{
@@ -720,6 +750,10 @@
         clearRefCircle();
         if (refText) refText.style.opacity = 0;
         hideRadialOverlay();
+        // 키보드 포커스 해제 시 사운드 정지 (선택 전에만)
+        if (stepIndex === 0 && !selectedPlace) {
+          stopPlaceSoundForHover();
+        }
       });
 
       // click: register selection for current step, move to next
@@ -763,6 +797,10 @@
       hideInnerplateHoverImage();
       clearRefCircle();
       hideRadialOverlay();
+      // 장소 선택지 호버 해제 시 사운드 정지 (선택 전에만)
+      if (stepIndex === 0 && !selectedPlace) {
+        stopPlaceSoundForHover();
+      }
     });
   }
 
@@ -954,6 +992,8 @@
         console.log('저장 후 확인:', saved);
         
         console.log('result.html로 이동합니다...');
+        // 결과 페이지로 이동 전 사운드 완전 정지
+        stopPlaceSoundCompletely();
         // 결과 페이지로 이동
         location.href = 'result.html';
       } else {
@@ -1089,9 +1129,9 @@ function renderStep() {
   window.addEventListener('load', ()=> { renderStep(); });
   window.addEventListener('resize', debounce(()=> layoutAll(), 120));
   
-  // 페이지를 떠날 때 사운드 정지
+  // 페이지를 떠날 때 사운드 완전 정지
   window.addEventListener('beforeunload', () => {
-    stopPlaceSound();
+    stopPlaceSoundCompletely();
   });
 
   // small helper
