@@ -172,6 +172,24 @@
       }
     }
     
+    /* 툴팁 표시 중 글로우 강조 애니메이션 */
+    .right-circle-glow.tooltip-active {
+      background: radial-gradient(circle, rgba(235, 254, 179, 0.95) 0%, rgba(235, 254, 179, 0.75) 25%, rgba(235, 254, 179, 0.5) 50%, rgba(235, 254, 179, 0.25) 75%, transparent 100%);
+      filter: blur(3px); /* 블러를 줄여서 더 선명하게 */
+      animation: glowPulseSubtle 1.2s ease-in-out infinite;
+    }
+    
+    @keyframes glowPulseSubtle {
+      0%, 100% {
+        transform: scale(1.0);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.08); /* 크게 확대하지 않고 살짝만 */
+        opacity: 1;
+      }
+    }
+    
     /* ============================================================
        배치 수정 가이드:
        - 장소 이미지: left, bottom, width, height 조정
@@ -183,6 +201,38 @@
     .ticket-content{position:absolute; inset:0; display:block; padding:0; pointer-events:none; z-index:15; overflow:hidden;}
     .ticket-content img{object-fit:contain; pointer-events:none; display:block;}
     .ticket-content .draggable-img{width: auto; height: auto;}
+    
+    /* 드래그 안내 툴팁 */
+    .drag-tooltip {
+      position: fixed;
+      background: rgba(60, 108, 113, 0.95);
+      color: rgba(235, 254, 179, 0.95);
+      padding: clamp(0.8vw, 1.2vmin, 1.2vw) clamp(1.2vw, 1.8vmin, 1.8vw);
+      border-radius: clamp(0.6vw, 1vmin, 1vw);
+      border: 1px solid rgba(235, 254, 179, 0.4);
+      font-size: clamp(0.9vw, 1.4vmin, 1.3vw);
+      font-family: var(--font-main);
+      line-height: 1.4;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 3000;
+      opacity: 0;
+      transform: translate(-50%, -100%) translateY(-10px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    
+    .drag-tooltip.show {
+      opacity: 1;
+      transform: translate(-50%, -100%) translateY(0);
+    }
+    
+    .drag-tooltip.hide {
+      opacity: 0;
+      transform: translate(-50%, -100%) translateY(-10px);
+    }
 
     .ticket-footer{display:flex; gap:2vw; align-items:center; justify-content:flex-start; margin-top:1.5vh; margin-bottom:1vh; z-index:12; position:relative; padding-left:0; width:80vw; margin-left:auto; margin-right:auto;}
     .ticket-footer img.btn-img{height:3.5vw !important; max-height:3.5vw !important; min-height:3.5vw !important; cursor:pointer; display:block; width:auto; object-fit:contain; vertical-align:middle;}
@@ -2261,6 +2311,112 @@ function showQRForDataURL(dataURL){
   qrImg.src = qrSrc;
   qrArea.style.display = 'flex';
 }
+
+/* 드래그 안내 툴팁 */
+(function initDragTooltip() {
+  let tooltipShown = false;
+  let tooltipTimeout = null;
+  let hideTimeout = null;
+  
+  // 툴팁 요소 생성
+  const tooltip = document.createElement('div');
+  tooltip.className = 'drag-tooltip';
+  tooltip.textContent = '원 안의 그래픽을 드래그해 배치를 바꿔보세요';
+  document.body.appendChild(tooltip);
+  
+  // 툴팁 표시 함수
+  function showTooltip(x, y) {
+    if (tooltipShown) return;
+    
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+    tooltip.classList.remove('hide');
+    tooltip.classList.add('show');
+    
+    // 오른쪽 원 글로우 강조 효과 추가
+    const rightCircleGlow = document.querySelector('.right-circle-glow');
+    if (rightCircleGlow) {
+      rightCircleGlow.classList.add('tooltip-active');
+    }
+    
+    // 5초 후 자동 숨김
+    if (hideTimeout) clearTimeout(hideTimeout);
+    hideTimeout = setTimeout(() => {
+      hideTooltip();
+    }, 5000);
+  }
+  
+  // 툴팁 숨김 함수
+  function hideTooltip() {
+    // 즉시 숨김 처리 (애니메이션 대기 없이)
+    tooltip.classList.remove('show');
+    tooltip.classList.add('hide');
+    tooltip.style.display = 'none';
+    tooltipShown = true;
+    
+    // 오른쪽 원 글로우 강조 효과 제거
+    const rightCircleGlow = document.querySelector('.right-circle-glow');
+    if (rightCircleGlow) {
+      rightCircleGlow.classList.remove('tooltip-active');
+    }
+    
+    // 타임아웃 정리
+    if (tooltipTimeout) {
+      clearTimeout(tooltipTimeout);
+      tooltipTimeout = null;
+    }
+    if (hideTimeout) {
+      clearTimeout(hideTimeout);
+      hideTimeout = null;
+    }
+  }
+  
+  // 마우스 이동 감지
+  let firstMouseMove = true;
+  
+  document.addEventListener('mousemove', (e) => {
+    // 첫 번째 마우스 이동에서만 툴팁 표시
+    if (firstMouseMove && !tooltipShown) {
+      firstMouseMove = false;
+      
+      // 약간의 지연 후 표시 (페이지 로드 직후가 아닌 사용자 의도적인 마우스 이동 감지)
+      if (tooltipTimeout) clearTimeout(tooltipTimeout);
+      tooltipTimeout = setTimeout(() => {
+        // 마우스 커서 위치에서 약간 위쪽에 표시
+        const offsetX = 0; // 커서 중심
+        const offsetY = -20; // 커서 위쪽 20px
+        showTooltip(e.clientX + offsetX, e.clientY + offsetY);
+      }, 300);
+    }
+    
+    // 툴팁이 표시된 상태에서 마우스 이동 시 툴팁 위치 업데이트
+    if (tooltip.classList.contains('show')) {
+      const offsetX = 0;
+      const offsetY = -20;
+      tooltip.style.left = (e.clientX + offsetX) + 'px';
+      tooltip.style.top = (e.clientY + offsetY) + 'px';
+    }
+  });
+  
+  // 드래그 시작 시 툴팁 숨김 (이벤트 위임 사용)
+  document.addEventListener('mousedown', (e) => {
+    const draggableImg = e.target.closest('.draggable-img');
+    if (draggableImg) {
+      // 드래그 가능한 이미지 클릭 시 즉시 툴팁 숨김
+      if (tooltip.classList.contains('show') || tooltip.style.display !== 'none') {
+        hideTooltip();
+      }
+    }
+  }, true); // capture phase에서 실행하여 더 빠르게 처리
+  
+  // 티켓 발급 버튼 클릭 시 툴팁 숨김
+  const btnUseTicket = document.getElementById('btnUseTicket');
+  if (btnUseTicket) {
+    btnUseTicket.addEventListener('click', () => {
+      hideTooltip();
+    });
+  }
+})();
 
 /* main init */
 (async function init(){
