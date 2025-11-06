@@ -527,19 +527,47 @@
         const archiveData = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
         console.log('📚 아카이브 데이터:', archiveData);
         
-        // 각 아이템의 이미지 위치 정보 상세 로그
-        archiveData.forEach((item, index) => {
-          console.log(`📋 아이템 ${index + 1}:`, item.id);
-          console.log('   - imagePositions:', item.imagePositions);
-          if (item.imagePositions) {
-            item.imagePositions.forEach((img, imgIndex) => {
-              console.log(`   - 이미지 ${imgIndex + 1}:`, img.src, '위치:', img.left, img.top);
-            });
+        // 유효한 아이템만 필터링 (손상된 이미지가 있는 아이템 제외)
+        const validArchiveData = archiveData.filter((item, index) => {
+          // rightCircleImage 유효성 검사
+          if (item.rightCircleImage) {
+            if (typeof item.rightCircleImage !== 'string' || 
+                !item.rightCircleImage.startsWith('data:image/') || 
+                item.rightCircleImage.length < 100) {
+              console.warn(`⚠️ 아이템 ${index + 1} (${item.id})의 rightCircleImage가 유효하지 않아 제외됩니다:`, {
+                타입: typeof item.rightCircleImage,
+                길이: item.rightCircleImage?.length || 0,
+                시작: item.rightCircleImage?.substring(0, 20) || '없음'
+              });
+              return false; // 유효하지 않은 아이템 제외
+            }
           }
+          
+          // imagePositions가 있는 경우도 확인
+          if (item.imagePositions && item.imagePositions.length > 0) {
+            // imagePositions는 유효한 것으로 간주 (이미지 경로는 나중에 로드 시 확인)
+            return true;
+          }
+          
+          // rightCircleImage도 없고 imagePositions도 없으면 제외
+          if (!item.rightCircleImage && (!item.imagePositions || item.imagePositions.length === 0)) {
+            console.warn(`⚠️ 아이템 ${index + 1} (${item.id})에 표시할 이미지가 없어 제외됩니다.`);
+            return false;
+          }
+          
+          return true; // 유효한 아이템
         });
         
-        displayArchive(archiveData);
-        displayArchiveStats(archiveData);
+        console.log(`📊 유효한 아이템: ${validArchiveData.length}개 / 전체: ${archiveData.length}개`);
+        
+        if (validArchiveData.length === 0 && archiveData.length > 0) {
+          console.warn('⚠️ 모든 아이템이 유효하지 않습니다. 빈 상태를 표시합니다.');
+          showEmptyState();
+          return;
+        }
+        
+        displayArchive(validArchiveData);
+        displayArchiveStats(validArchiveData);
         
       } catch (error) {
         console.error('❌ 아카이브 로드 실패:', error);
@@ -657,6 +685,31 @@
           minute: '2-digit' 
         });
         
+        // 시간 기반 크기 조정 계산
+        const now = Date.now();
+        const itemAge = now - item.timestamp; // 밀리초
+        const itemAgeHours = itemAge / (1000 * 60 * 60); // 시간 단위
+        
+        // 시간에 따른 크기 비율 계산
+        // 2시간 이내: 거의 같은 크기 (100%)
+        // 2시간 ~ 12시간: 점진적으로 작아짐 (100% → 40%)
+        // 12시간 이상: 아주 작게 (40%)
+        let timeBasedSizeRatio = 1.0;
+        if (itemAgeHours <= 2) {
+          // 2시간 이내: 거의 같은 크기 (95% ~ 100%)
+          timeBasedSizeRatio = 0.95 + (2 - itemAgeHours) / 2 * 0.05; // 2시간일 때 95%, 0시간일 때 100%
+        } else if (itemAgeHours <= 12) {
+          // 2시간 ~ 12시간: 점진적으로 작아짐 (95% → 40%)
+          const progress = (itemAgeHours - 2) / 10; // 0 ~ 1 (2시간일 때 0, 12시간일 때 1)
+          timeBasedSizeRatio = 0.95 - progress * 0.55; // 95% → 40%
+        } else {
+          // 12시간 이상: 아주 작게 (40%)
+          timeBasedSizeRatio = 0.4;
+        }
+        
+        // 최종 크기: 개수 기반 크기 * 시간 기반 비율
+        const finalMaxImgSizeVw = maxImgSizeVw * timeBasedSizeRatio;
+        
         // right_circle.svg 배경에 드래그 이미지들 표시
         let ticketContent = '';
         let overlayContent = ''; // 오버레이 라인과 텍스트
@@ -664,10 +717,11 @@
         // 저장된 right_circle 이미지가 있으면 그것을 우선 사용 (가장 정확)
         // 투명 배경으로 캡처된 완전한 이미지이므로, 원본 크기와 비율을 정확히 유지
         // object-fit 사용 시 배치가 달라질 수 있으므로, 이미지 로드 후 자연스러운 크기 유지
-        if (item.rightCircleImage) {
+        if (item.rightCircleImage && typeof item.rightCircleImage === 'string' && item.rightCircleImage.length > 100 && item.rightCircleImage.startsWith('data:image/')) {
+          // 이미지 데이터가 유효한지 확인 (최소 100자 이상, data:image로 시작)
           // 압축된 이미지는 크기를 더 작게 표시 (해상도가 낮으므로)
           const isCompressed = item.compressed || false;
-          const displayMaxSizeVw = isCompressed ? maxImgSizeVw * 0.7 : maxImgSizeVw; // 압축된 이미지는 70% 크기
+          const displayMaxSizeVw = isCompressed ? finalMaxImgSizeVw * 0.7 : finalMaxImgSizeVw; // 압축된 이미지는 70% 크기
           
           ticketContent = `
             <div class="ticket-container" style="position: relative; display: inline-block; margin: 0 auto; background: transparent; line-height: 0;">
@@ -677,6 +731,16 @@
                      // 이미지의 자연스러운 크기를 유지하면서 max 크기만 제한 (vw 단위)
                      const naturalWidth = img.naturalWidth;
                      const naturalHeight = img.naturalHeight;
+                     if (naturalWidth === 0 || naturalHeight === 0) {
+                       console.error('⚠️ 이미지 로드 실패: 크기가 0입니다', img.src.substring(0, 50));
+                       // 이미지 크기가 0인 경우 해당 아이템 숨기기
+                       const archiveItem = img.closest('.archive-item');
+                       if (archiveItem) {
+                         archiveItem.style.display = 'none';
+                         console.log('✅ 손상된 이미지(크기 0) 아이템 숨김:', archiveItem);
+                       }
+                       return;
+                     }
                      const maxSizeVw = ${displayMaxSizeVw};
                      const maxSizePx = (maxSizeVw / 100) * window.innerWidth;
                      
@@ -700,6 +764,15 @@
                      const displayHeightVw = (displayHeight / window.innerWidth) * 100;
                      img.style.width = displayWidthVw + 'vw';
                      img.style.height = displayHeightVw + 'vw';
+                   })(this);"
+                   onerror="(function(img) {
+                     console.error('❌ 이미지 로드 실패:', img.src.substring(0, 100));
+                     // 이미지 로드 실패 시 해당 아이템 숨기기
+                     const archiveItem = img.closest('.archive-item');
+                     if (archiveItem) {
+                       archiveItem.style.display = 'none';
+                       console.log('✅ 손상된 이미지 아이템 숨김:', archiveItem);
+                     }
                    })(this);">
             </div>
           `;
@@ -707,7 +780,7 @@
           // 컨테이너를 정사각형으로 만들어 원형 모양 유지
           // right_circle.svg를 배경으로 사용 (원형 컨테이너로 제한)
           ticketContent = `
-            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${maxImgSizeVw}vw; max-height: ${maxImgSizeVw}vw; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
+            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${finalMaxImgSizeVw}vw; max-height: ${finalMaxImgSizeVw}vw; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
               ${item.imagePositions.map(imgData => {
                 // 새 형식: relativeLeft, relativeTop 등 사용 (right_circle 기준 0~1 범위)
                 if (imgData.relativeLeft !== undefined) {
@@ -726,7 +799,15 @@
                                 border: 0 !important; outline: 0 !important; background: transparent !important;
                                 transform: ${imgData.transform || ''}; pointer-events: none;
                                 transform-origin: center center;"
-                         onerror="console.log('이미지 로드 실패:', '${imgData.src}');">
+                         onerror="(function(img) {
+                           console.error('❌ 이미지 로드 실패:', '${imgData.src}');
+                           // 이미지 로드 실패 시 해당 아이템 숨기기
+                           const archiveItem = img.closest('.archive-item');
+                           if (archiveItem) {
+                             archiveItem.style.display = 'none';
+                             console.log('✅ 손상된 이미지 아이템 숨김:', archiveItem);
+                           }
+                         })(this);">
                   `;
                 }
                 // 하위 호환성: 기존 left/top 형식
@@ -753,7 +834,15 @@
                                 object-fit: contain; z-index: 10;
                                 border: 0 !important; outline: 0 !important; background: transparent !important;
                                 transform: ${imgData.transform || ''}; pointer-events: none;"
-                         onerror="console.log('이미지 로드 실패:', '${imgData.src}');">
+                         onerror="(function(img) {
+                           console.error('❌ 이미지 로드 실패:', '${imgData.src}');
+                           // 이미지 로드 실패 시 해당 아이템 숨기기
+                           const archiveItem = img.closest('.archive-item');
+                           if (archiveItem) {
+                             archiveItem.style.display = 'none';
+                             console.log('✅ 손상된 이미지 아이템 숨김:', archiveItem);
+                           }
+                         })(this);">
                   `;
                 }
               }).join('')}
@@ -762,7 +851,7 @@
         } else if (item.rightImagePositions && item.rightImagePositions.length > 0) {
           // 하위 호환성: rightImagePositions 사용
           ticketContent = `
-            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${maxImgSizeVw}vw; max-height: ${maxImgSizeVw}vw; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
+            <div class="ticket-container" style="position: relative; width: 100%; aspect-ratio: 1; max-width: ${finalMaxImgSizeVw}vw; max-height: ${finalMaxImgSizeVw}vw; margin: 0 auto; background: url('result/ticket/right_circle.svg') no-repeat center center; background-size: contain;">
               ${item.rightImagePositions.map(imgData => `
                 <img src="${imgData.src}" alt=""
                      style="position: absolute; right: ${imgData.right || 50}%; top: ${imgData.top || 50}%; 
@@ -787,7 +876,7 @@
         // 20vw를 기준으로 하되, 그래픽 크기 변화에 텍스트는 더 작게 반응 (0.6배)
         const baseFontSizeVw = 20; // 기준 그래픽 크기 (vw)
         const fontSizeRatio = 0.6; // 텍스트 변화 비율 (그래픽보다 작게)
-        const normalizedScale = 1 + (maxImgSizeVw - baseFontSizeVw) / baseFontSizeVw * fontSizeRatio;
+        const normalizedScale = 1 + (finalMaxImgSizeVw - baseFontSizeVw) / baseFontSizeVw * fontSizeRatio;
         // vw 단위로 계산 (화면 비례)
         const baseFontSizeVwValue = 0.7; // 기준 폰트 크기 (vw)
         const stageInfoFontSizeVw = baseFontSizeVwValue * normalizedScale;
@@ -801,7 +890,7 @@
         // 그래픽 크기에 정확히 비례하여 텍스트 위치 조정 (더 가깝게)
         // vw 기준으로 계산
         const baseSizeForPositionVw = 20; // 기준 크기 (vw)
-        const positionScale = maxImgSizeVw / baseSizeForPositionVw;
+        const positionScale = finalMaxImgSizeVw / baseSizeForPositionVw;
         // bottom 위치를 그래픽 크기에 비례하여 조정 (20vw일 때 -1vw로 줄여서 더 가깝게)
         const bottomOffsetVw = -1 * positionScale;
         const bottomOffset = `${bottomOffsetVw}vw`;
@@ -820,7 +909,7 @@
         }
         
         // ticket-info 위치도 그래픽 크기에 비례하여 조정 (더 가깝게)
-        const ticketInfoTopOffsetVw = maxImgSizeVw * 0.03; // 그래픽 크기의 3% 아래 (vw)
+        const ticketInfoTopOffsetVw = finalMaxImgSizeVw * 0.03; // 그래픽 크기의 3% 아래 (vw)
         const ticketInfoTopOffset = `${ticketInfoTopOffsetVw}vw`;
         
         return `
@@ -915,7 +1004,7 @@
           if (isNewItem) {
             // 하늘에서 시작 (화면 위쪽, 약간의 랜덤 x 위치)
             initialX = padding + Math.random() * maxX;
-            initialY = -itemSize - 50; // 화면 위쪽 밖에서 시작
+            initialY = -physicsItemSize - 50; // 화면 위쪽 밖에서 시작 (시간 기반 크기 사용)
           }
           
           // 초기 위치를 transform으로 설정 (left/top 대신)
@@ -926,10 +1015,28 @@
           // 물리 시뮬레이션 데이터 초기화 (생성 시간 포함)
           const birthTime = Date.now(); // 시뮬레이션 시작 시점
           
+          // 시간 기반 크기 조정 계산 (물리 시뮬레이션용)
+          const itemAgeHours = ageInSeconds / 3600; // 시간 단위
+          let timeBasedSizeRatio = 1.0;
+          if (itemAgeHours <= 2) {
+            timeBasedSizeRatio = 0.95 + (2 - itemAgeHours) / 2 * 0.05; // 2시간일 때 95%, 0시간일 때 100%
+          } else if (itemAgeHours <= 12) {
+            const progress = (itemAgeHours - 2) / 10; // 0 ~ 1
+            timeBasedSizeRatio = 0.95 - progress * 0.55; // 95% → 40%
+          } else {
+            timeBasedSizeRatio = 0.4;
+          }
+          
+          // 물리 시뮬레이션용 크기 (시간에 따라 조정)
+          const physicsItemSize = itemSize * timeBasedSizeRatio;
+          const physicsRadius = physicsItemSize / 2;
+          
           // 초기 활동성 계산 (나이에 따라)
+          // 0~10분: 활발 (1.0), 10~30분: 점차 감소 (1.0 → 0.0), 30분 이후: 정지 (0.0)
           let initialActivity = 1.0;
-          if (ageInSeconds > 600) { // 10분 = 600초 (더 늦게 감소 시작)
-            initialActivity = Math.max(0, 1 - (ageInSeconds - 600) / 600); // 10분 후부터 감소, 20분에 0
+          if (ageInSeconds > 600) { // 10분 = 600초
+            // 10분 후부터 30분까지 점점 감소 (20분 = 1200초 동안 감소)
+            initialActivity = Math.max(0, 1 - (ageInSeconds - 600) / 1200); // 10분 후부터 감소, 30분(1800초)에 0
           }
           
           // 새로운 아이템은 떨어지는 모션을 위해 초기 속도 조정
@@ -951,13 +1058,14 @@
             rotate: randomRotate,
             vx: initialVx,
             vy: initialVy,
-            radius: itemSize / 2,
+            radius: physicsRadius, // 충돌 감지용 반지름 (시간에 따라 조정된 크기)
             bounceTime: 0, // 튕김 효과 지속 시간
             bounceForce: { x: 0, y: 0 }, // 튕김 힘
             isHovered: false, // hover 상태
             birthTime: birthTime, // 생성 시점
             age: ageInSeconds, // 아이템의 실제 나이 (초)
-            isNewItem: isNewItem // 새로운 아이템 플래그
+            isNewItem: isNewItem, // 새로운 아이템 플래그
+            timeBasedSizeRatio: timeBasedSizeRatio // 시간 기반 크기 비율 저장
           };
           
           // hover 이벤트 리스너
@@ -1221,37 +1329,89 @@
           const totalAge = item.age + itemAge; // 실제 나이 + 시뮬레이션 나이
           
           // 활동성 계산 (시간이 지날수록 감소)
-          // 0~10분: 활발 (1.0), 10~20분: 중간 (0.5~1.0), 20분 이후: 정지 (0.0)
+          // 0~10분: 활발 (1.0), 10~30분: 점차 감소 (1.0 → 0.0), 30분 이후: 정지 (0.0)
           let activity = 1.0;
-          if (totalAge > 600) { // 10분 = 600초 (더 늦게 감소 시작)
-            activity = Math.max(0, 1 - (totalAge - 600) / 600); // 10분 후부터 점점 감소, 20분에 0
+          if (totalAge > 600) { // 10분 = 600초
+            // 10분 후부터 30분까지 점점 감소 (20분 = 1200초 동안 감소)
+            activity = Math.max(0, 1 - (totalAge - 600) / 1200); // 10분 후부터 점점 감소, 30분(1800초)에 0
           }
           
-          // 활동성이 낮아지면 바닥으로 내려가기 시작
-          if (activity < 0.3) {
+          // 활동성이 낮아지면 바닥으로 내려가기 시작 (10~30분 구간에서 서서히)
+          if (activity < 0.7) { // 활동성이 0.7 미만이면 바닥으로 이동 시작
             // 바닥으로 끌어당기는 효과 (활동성이 낮을수록 강함)
             const targetY = maxY; // 바닥
             const distanceToBottom = targetY - item.y;
-            const pullStrength = (1 - activity) * 0.15; // 활동성이 낮을수록 강하게 당김
-            item.vy += distanceToBottom * pullStrength * 0.01; // 바닥으로 끌어당김
+            const pullStrength = (1 - activity) * 0.3; // 활동성이 낮을수록 강하게 당김
+            item.vy += distanceToBottom * pullStrength * 0.02; // 바닥으로 끌어당김
           }
           
-          // 활동성이 매우 낮으면 바닥에 정착
+          // 활동성이 낮으면 바닥에 정착 (30분 이후, 랜덤하게 쌓임)
           if (activity < 0.1) {
-            activity = 0;
-            // 바닥에 정착 (아래쪽으로 강하게 이동)
-            const targetY = maxY; // 바닥
-            const damping = 0.92; // 더 강한 감쇠
-            if (Math.abs(item.y - targetY) > 2) {
-              // 바닥으로 강하게 끌어당김
-              item.vy += (targetY - item.y) * 0.05; // 중력 효과 강화 (0.01 → 0.05)
-              item.vy *= damping;
-              item.vx *= damping * 0.98; // 수평 방향도 더 빠르게 감쇠
-            } else {
-              // 바닥에 거의 도달했으면 정착
-              item.y = targetY; // 바닥에 고정
-              item.vy = 0; // 수직 속도 제거
-              item.vx *= 0.85; // 수평 속도만 남아있을 수 있음 (더 빠르게 감쇠)
+            // 바닥 근처에 있는지 확인
+            const nearBottom = item.y > maxY - itemSize * 0.5; // 바닥 근처 50% 영역
+            
+            if (nearBottom) {
+              // 랜덤하게 쌓이도록: 바닥 근처의 랜덤한 위치로 이동
+              // 바닥에 있는 다른 아이템들과 겹치지 않도록 처리
+              let targetY = maxY;
+              let targetX = item.x; // 현재 x 위치 유지 (랜덤하게 흩어짐)
+              
+              // 바닥 근처에 있는 다른 아이템들과 겹치지 않는 위치 찾기
+              let attempts = 0;
+              let foundPosition = false;
+              while (!foundPosition && attempts < 10) {
+                // 랜덤한 x 위치 시도 (바닥 근처에서)
+                targetX = minX + Math.random() * (maxX - minX);
+                targetY = maxY;
+                
+                // 다른 아이템과 겹치는지 확인
+                let overlap = false;
+                for (let j = 0; j < items.length; j++) {
+                  const other = items[j];
+                  if (other !== item && other.y > maxY - itemSize * 0.5) {
+                    const dx = Math.abs(targetX - other.x);
+                    const dy = Math.abs(targetY - other.y);
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < item.radius + other.radius + 10) {
+                      overlap = true;
+                      break;
+                    }
+                  }
+                }
+                
+                if (!overlap) {
+                  foundPosition = true;
+                }
+                attempts++;
+              }
+              
+              const damping = 0.88; // 더 강한 감쇠
+              
+              // 목표 위치로 이동
+              const distanceToTarget = Math.sqrt((targetX - item.x) ** 2 + (targetY - item.y) ** 2);
+              if (distanceToTarget > 5) {
+                // 목표 위치로 강하게 끌어당김
+                const pullX = (targetX - item.x) * 0.05; // 수평 이동
+                const pullY = (targetY - item.y) * 0.12; // 수직 이동
+                item.vx += pullX;
+                item.vy += pullY;
+                item.vy *= damping;
+                item.vx *= damping * 0.95;
+              } else {
+                // 목표 위치에 거의 도달했으면 정착
+                item.x = targetX; // 목표 x 위치로 이동
+                item.y = Math.min(item.y, targetY); // 목표 y 위치
+                item.vy = Math.max(0, item.vy); // 위로 올라가지 않도록
+                item.vx *= 0.7; // 수평 속도 빠르게 감쇠
+                
+                // 활동성이 매우 낮으면 완전 정착
+                if (activity < 0.05) {
+                  item.x = targetX; // 목표 x 위치에 완전 고정
+                  item.y = targetY; // 목표 y 위치에 완전 고정
+                  item.vy = 0; // 수직 속도 완전 제거
+                  item.vx = 0; // 수평 속도도 완전 제거
+                }
+              }
             }
           }
           
@@ -1324,15 +1484,21 @@
             item.y = minY;
             item.vy *= -0.8;
             item.vx *= 0.95;
-          } else if (item.y > maxY) {
+          } else           if (item.y > maxY) {
             item.y = maxY;
             // 바닥에 닿았을 때 위로 튕기는 힘을 활동성에 따라 제거
-            if (activity < 0.2) {
-              // 활동성이 낮으면 위로 튕기지 않고 바닥에 고정
-              item.vy = 0;
-              item.vx *= 0.9; // 수평 속도만 감쇠
+            if (activity < 0.3) {
+              // 활동성이 낮으면 위로 튕기지 않고 바닥에 고정 (조건 완화: 0.2 → 0.3)
+              item.vy = Math.max(0, item.vy); // 위로 올라가지 않도록
+              item.vx *= 0.85; // 수평 속도만 감쇠 (0.9 → 0.85)
+              
+              // 활동성이 매우 낮으면 완전 정착
+              if (activity < 0.1) {
+                item.vy = 0; // 수직 속도 완전 제거
+                item.vx *= 0.7; // 수평 속도도 빠르게 감쇠
+              }
             } else {
-              item.vy *= -0.8;
+              item.vy *= -0.6; // 위로 튕기는 힘 감소 (0.8 → 0.6)
               item.vx *= 0.95;
             }
           }
@@ -1357,28 +1523,42 @@
               const otherAge = (currentTime - other.birthTime) / 1000;
               const itemTotalAge = item.age + itemAge;
               const otherTotalAge = other.age + otherAge;
-              const itemActivity = itemTotalAge > 600 ? Math.max(0, 1 - (itemTotalAge - 600) / 600) : 1.0;
-              const otherActivity = otherTotalAge > 600 ? Math.max(0, 1 - (otherTotalAge - 600) / 600) : 1.0;
+              const itemActivity = itemTotalAge > 600 ? Math.max(0, 1 - (itemTotalAge - 600) / 1200) : 1.0;
+              const otherActivity = otherTotalAge > 600 ? Math.max(0, 1 - (otherTotalAge - 600) / 1200) : 1.0;
               
-              // 바닥 근처에서의 충돌 처리 개선
-              const itemNearBottom = item.y > maxY - itemSize * 0.5;
-              const otherNearBottom = other.y > maxY - itemSize * 0.5;
+              // 바닥 근처에서의 충돌 처리 개선 (구슬처럼 쌓이도록)
+              const itemNearBottom = item.y > maxY - itemSize * 0.7; // 바닥 근처 범위 확대 (0.5 → 0.7)
+              const otherNearBottom = other.y > maxY - itemSize * 0.7;
               
               // 아이템을 강제로 분리 (겹침 완전 방지)
               let separationX = Math.cos(angle) * overlap * 0.6;
               let separationY = Math.sin(angle) * overlap * 0.6;
               
-              // 바닥 근처에서는 수평 방향으로만 분리 (수직 분리 최소화)
+              // 바닥 근처에서는 수평 방향으로만 분리 (수직 분리 최소화, 구슬처럼 쌓이도록)
               if (itemNearBottom && otherNearBottom) {
-                // 둘 다 바닥 근처면 수평으로만 분리
-                separationY *= 0.3; // 수직 분리 최소화
-                separationX *= 1.2; // 수평 분리는 강화
+                // 둘 다 바닥 근처면 수평으로만 분리, 아래쪽에 있는 아이템은 더 아래로
+                if (item.y > other.y) {
+                  // item이 더 아래에 있으면 item은 아래로, other는 위로
+                  separationY = Math.max(0, separationY * 0.2); // item은 약간만 아래로
+                } else {
+                  // other가 더 아래에 있으면 other는 아래로, item은 위로
+                  separationY = Math.min(0, separationY * 0.2); // other는 약간만 아래로
+                }
+                separationX *= 1.3; // 수평 분리는 더 강화 (1.2 → 1.3)
               } else if (itemNearBottom) {
-                // item만 바닥 근처면 item은 수직으로 움직이지 않음
-                separationY = Math.max(0, separationY); // item은 아래로 내려가지 않음
+                // item만 바닥 근처면 item은 수직으로 움직이지 않음 (바닥에 고정)
+                if (itemActivity < 0.2) {
+                  separationY = 0; // 활동성이 낮으면 완전히 고정
+                } else {
+                  separationY = Math.max(0, separationY * 0.3); // item은 아래로 내려가지 않음
+                }
               } else if (otherNearBottom) {
-                // other만 바닥 근처면 other는 수직으로 움직이지 않음
-                separationY = Math.min(0, separationY); // other는 아래로 내려가지 않음
+                // other만 바닥 근처면 other는 수직으로 움직이지 않음 (바닥에 고정)
+                if (otherActivity < 0.2) {
+                  separationY = 0; // 활동성이 낮으면 완전히 고정
+                } else {
+                  separationY = Math.min(0, separationY * 0.3); // other는 아래로 내려가지 않음
+                }
               }
               
               item.x += separationX;
@@ -1502,16 +1682,31 @@
     // 아카이브 새로고침 함수
     function refreshArchive() {
       console.log('🔄 아카이브 새로고침 시작...');
-      const archiveData = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-      const currentCount = archiveData.length;
-      
-      // 개수가 변경되었거나, 아직 초기화되지 않은 경우 새로고침
-      if (currentCount !== lastArchiveCount || lastArchiveCount === 0) {
-        console.log(`📊 아카이브 개수 변경: ${lastArchiveCount} → ${currentCount}`);
-        lastArchiveCount = currentCount;
-        loadArchive();
-      } else {
-        console.log('📊 아카이브 개수 변경 없음, 새로고침 건너뜀');
+      try {
+        const archiveData = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+        const currentCount = archiveData.length;
+        
+        // 저장된 데이터의 무결성 확인
+        let validCount = 0;
+        archiveData.forEach((item, index) => {
+          if (item.rightCircleImage && typeof item.rightCircleImage === 'string' && 
+              item.rightCircleImage.startsWith('data:image/') && item.rightCircleImage.length > 100) {
+            validCount++;
+          }
+        });
+        console.log(`📊 아카이브 데이터 무결성: 총 ${currentCount}개, 유효한 이미지 ${validCount}개`);
+        
+        // 개수가 변경되었거나, 아직 초기화되지 않은 경우 새로고침
+        if (currentCount !== lastArchiveCount || lastArchiveCount === 0) {
+          console.log(`📊 아카이브 개수 변경: ${lastArchiveCount} → ${currentCount}`);
+          lastArchiveCount = currentCount;
+          loadArchive();
+        } else {
+          console.log('📊 아카이브 개수 변경 없음, 새로고침 건너뜀');
+        }
+      } catch (error) {
+        console.error('❌ 아카이브 새로고침 중 오류:', error);
+        // 오류 발생 시에도 기존 데이터는 유지
       }
     }
     
@@ -1544,18 +1739,18 @@
       window.addEventListener('storage', function(event) {
         if (event.key === ARCHIVE_KEY || event.key === 'portato_archive_updated') {
           console.log('📢 storage 이벤트 감지:', event.key);
-          // 약간의 지연을 두고 새로고침
+          // 약간의 지연을 두고 새로고침 (저장이 완료될 시간을 줌)
           setTimeout(() => {
             refreshArchive();
-          }, 300);
+          }, 500);
         }
       });
       
-      // 주기적 체크 (30초마다) - BroadcastChannel이 작동하지 않는 경우를 대비
+      // 주기적 체크 (60초마다로 변경 - 너무 자주 체크하면 데이터 손상 가능성) - BroadcastChannel이 작동하지 않는 경우를 대비
       archiveUpdateCheckInterval = setInterval(() => {
         refreshArchive();
-      }, 30000); // 30초마다 체크
-      console.log('✅ 주기적 아카이브 체크 시작 (30초 간격)');
+      }, 60000); // 60초마다 체크 (30초 → 60초로 변경)
+      console.log('✅ 주기적 아카이브 체크 시작 (60초 간격)');
       
       // 페이지가 로드된 후 10초 뒤에 마지막으로 본 timestamp 업데이트
       // (새로운 아이템이 있고 애니메이션이 끝난 후에만 업데이트되도록 이미 위에서 처리됨)
@@ -1569,16 +1764,8 @@
           clearInterval(archiveUpdateCheckInterval);
         }
         
-        const archiveData = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
-        if (archiveData.length > 0) {
-          const sortedData = archiveData.sort((a, b) => b.timestamp - a.timestamp);
-          const currentLatestTimestamp = sortedData[0].timestamp;
-          const lastViewedTimestamp = parseInt(localStorage.getItem(LAST_VIEWED_KEY) || '0');
-          // 현재 최신 아이템이 이미 본 것보다 최신이 아닌 경우에만 업데이트
-          if (currentLatestTimestamp <= lastViewedTimestamp) {
-            localStorage.setItem(LAST_VIEWED_KEY, currentLatestTimestamp.toString());
-          }
-        }
+        // 페이지를 떠날 때는 localStorage를 수정하지 않음 (데이터 손상 방지)
+        // timestamp 업데이트는 이미 새로운 아이템 애니메이션 완료 시 처리됨
       });
     });
   </script>
