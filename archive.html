@@ -128,27 +128,150 @@
     
     .archive-stats {
       position: fixed;
-      top: 3vh;
-      right: 3vw;
-      z-index: 2000;
-      pointer-events: none;
-      text-align: right;
+      top: 11vmin;
+      right: 4vw;
+      width: clamp(16vw, 18vw, 20vw);
+      background: rgba(235, 254, 179, 0.12);
+      border: 1px solid rgba(235, 254, 179, 0.35);
+      border-radius: 16px;
+      padding: 1.8vw 2vw;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15);
+      color: var(--ink);
+      font-family: 'Pretendard', sans-serif;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5vw;
+      z-index: 20;
     }
     
     .archive-stats .stat-line {
-      font-family: 'Sandoll SuPil', sans-serif;
-      font-size: clamp(1.2vw, 2vmin, 1.8vw);
       font-weight: 600;
       color: #77B975;
-      margin: 0;
-      margin-bottom: 0.5vh;
-      line-height: 1.4;
-      white-space: nowrap;
+      font-size: clamp(0.85vw, 1.5vmin, 1.2vw);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4vw;
     }
     
     .archive-stats .stat-number {
-      font-weight: 900;
-      font-size: 1.1em;
+      font-weight: 700;
+      font-size: clamp(2.4vw, 2.8vmin, 3vw);
+      color: #77B975;
+      text-shadow: 0 0 18px rgba(119, 185, 117, 0.35);
+    }
+    
+    .stat-categories {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.9vw 1.2vw;
+      padding: 1.2vw 1.4vw;
+      border-radius: 12px;
+      background: rgba(119, 185, 117, 0.08);
+      border: 1px solid rgba(119, 185, 117, 0.25);
+      color: #77B975;
+    }
+    
+    .stat-category-group {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6vw;
+    }
+    
+    .stat-category-title {
+      font-weight: 600;
+      font-size: clamp(0.8vw, 1.4vmin, 1.05vw);
+      color: #77B975;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.2vw;
+    }
+    
+    .stat-category-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5vw 0.8vw;
+    }
+    
+    .stat-category-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: clamp(0.7vw, 1.2vmin, 0.95vw);
+      color: rgba(119, 185, 117, 0.85);
+      border-bottom: 1px dashed rgba(119, 185, 117, 0.25);
+      padding-bottom: 0.35vw;
+    }
+    
+    .stat-category-item:last-child {
+      border-bottom: none;
+    }
+    
+    .stat-category-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 0.5vw;
+    }
+    
+    .stat-category-count {
+      font-weight: 600;
+      color: #77B975;
+    }
+    
+    .latest-ticket {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6vw;
+      margin-top: 1vw;
+    }
+    
+    .latest-ticket__title {
+      font-weight: 600;
+      font-size: clamp(0.9vw, 1.6vmin, 1.25vw);
+      color: #77B975;
+      letter-spacing: 0.02em;
+    }
+    
+    .latest-ticket__thumb {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 14px;
+      border: 1px solid rgba(119, 185, 117, 0.25);
+      background: rgba(119, 185, 117, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .latest-ticket__thumb img {
+      max-width: 80%;
+      max-height: 80%;
+      object-fit: contain;
+    }
+
+    .latest-ticket__composite {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: url('result/ticket/right_circle.svg') no-repeat center center;
+      background-size: contain;
+    }
+
+    .latest-ticket__composite-img {
+      position: absolute;
+      object-fit: contain;
+      pointer-events: none;
+    }
+    
+    .latest-ticket__placeholder {
+      font-size: clamp(0.7vw, 1.2vmin, 1vw);
+      color: rgba(119, 185, 117, 0.7);
+      text-align: center;
+      line-height: 1.4;
+      padding: 0 0.5vw;
     }
     
     .archive-container {
@@ -488,9 +611,10 @@
       지금까지 쌓여온 포르타토 공연의 수<br>
       <span class="stat-number" id="totalCount">0</span>
     </div>
-    <div class="stat-line">
-      오늘 쌓인 포르타토 공연의 수<br>
-      <span class="stat-number" id="todayCount">0</span>
+    <div class="stat-categories" id="categoryStats"></div>
+    <div class="latest-ticket" id="latestTicket">
+      <div class="latest-ticket__title">방금 들어온 공연 티켓</div>
+      <div class="latest-ticket__thumb" id="latestTicketThumb"></div>
     </div>
   </div>
 
@@ -578,29 +702,115 @@
     // 아카이브 통계 표시
     function displayArchiveStats(archiveData) {
       const totalCount = archiveData.length;
-      
-      // 오늘 날짜 기준으로 필터링
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const todayCount = archiveData.filter(item => {
-        const itemDate = new Date(item.timestamp);
-        itemDate.setHours(0, 0, 0, 0);
-        return itemDate.getTime() === today.getTime();
-      }).length;
-      
-      // 통계 업데이트
       const totalCountEl = document.getElementById('totalCount');
-      const todayCountEl = document.getElementById('todayCount');
-      
+      const categoryStatsEl = document.getElementById('categoryStats');
+
       if (totalCountEl) {
         totalCountEl.textContent = totalCount;
       }
-      if (todayCountEl) {
-        todayCountEl.textContent = todayCount;
+
+      if (!categoryStatsEl) {
+        return;
       }
-      
-      console.log(`📊 아카이브 통계: 총 ${totalCount}개, 오늘 ${todayCount}개`);
+
+      const categoryDefinitions = [
+        {
+          key: 'place',
+          title: '장소 선택',
+          options: [
+            { value: 'lawn', label: '들판' },
+            { value: 'forest', label: '숲속' },
+            { value: 'valley', label: '계곡' },
+            { value: 'sea', label: '바닷가' }
+          ]
+        },
+        {
+          key: 'mood',
+          title: '감정 선택',
+          options: [
+            { value: 'baroque', label: '정교한 선율' },
+            { value: 'romantic', label: '강렬한 감정' },
+            { value: 'impression', label: '몽환적 음색' },
+            { value: 'post', label: '자유로운 형식' }
+          ]
+        },
+        {
+          key: 'flow',
+          title: '흐름 선택',
+          options: [
+            { value: 'recline', label: '편안히 누워' },
+            { value: 'lounge', label: '자유롭게 앉아' },
+            { value: 'settle', label: '좌석에서 몰입' },
+            { value: 'wander', label: '가볍게 돌아다니며' }
+          ]
+        },
+        {
+          key: 'extras',
+          title: '추가 요소',
+          options: [
+            { value: 'dialogue', label: '연주자와 소통' },
+            { value: 'refresh', label: '다과 시간' },
+            { value: 'play', label: '음악 플레이존' },
+            { value: 'fire', label: '불빛 마당' }
+          ]
+        }
+      ];
+
+      const counts = {
+        place: Object.fromEntries(categoryDefinitions[0].options.map(opt => [opt.value, 0])),
+        mood: Object.fromEntries(categoryDefinitions[1].options.map(opt => [opt.value, 0])),
+        flow: Object.fromEntries(categoryDefinitions[2].options.map(opt => [opt.value, 0])),
+        extras: Object.fromEntries(categoryDefinitions[3].options.map(opt => [opt.value, 0]))
+      };
+
+      archiveData.forEach(item => {
+        const selections = item.selections || {};
+
+        if (selections.place && counts.place.hasOwnProperty(selections.place)) {
+          counts.place[selections.place] += 1;
+        }
+        if (selections.mood && counts.mood.hasOwnProperty(selections.mood)) {
+          counts.mood[selections.mood] += 1;
+        }
+        if (selections.flow && counts.flow.hasOwnProperty(selections.flow)) {
+          counts.flow[selections.flow] += 1;
+        }
+
+        if (Array.isArray(selections.extras)) {
+          selections.extras.forEach(extra => {
+            if (extra && counts.extras.hasOwnProperty(extra)) {
+              counts.extras[extra] += 1;
+            }
+          });
+        } else if (selections.extras && counts.extras.hasOwnProperty(selections.extras)) {
+          counts.extras[selections.extras] += 1;
+        }
+      });
+
+      categoryStatsEl.innerHTML = categoryDefinitions.map(category => {
+        const items = category.options
+          .map(option => {
+            const count = counts[category.key][option.value] || 0;
+            return `
+              <div class="stat-category-item">
+                <span class="stat-category-label">${option.label}</span>
+                <span class="stat-category-count">${count}</span>
+              </div>
+            `;
+          })
+          .join('');
+
+        return `
+          <div class="stat-category-group">
+            <div class="stat-category-title">${category.title}</div>
+            <div class="stat-category-grid">
+              ${items}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      console.log('📊 아카이브 통계 업데이트 완료:', { totalCount, counts });
     }
     
     // 아카이브 표시
@@ -675,6 +885,13 @@
       const maxImgSize = (maxImgSizeVw / 100) * window.innerWidth;
       
       console.log(`📊 아카이브 항목 개수: ${itemCount}개, 아이템 크기: ${itemSize}px`);
+      
+      // 이전 물리 시뮬레이션이 실행 중이면 중지 후 재시작 준비
+      if (typeof cancelAnimationFrame === 'function' && animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      physicsRunning = false;
       
       archiveGrid.innerHTML = sortedData.map((item, index) => {
         
@@ -923,41 +1140,148 @@
         `;
       }).join('');
       
-      // 컨테이너 크기 계산 (DOM이 렌더링된 후)
-      setTimeout(() => {
+      if (physicsInitTimeout) {
+        clearTimeout(physicsInitTimeout);
+        physicsInitTimeout = null;
+      }
+
+      physicsInitTimeout = setTimeout(() => {
+        physicsInitTimeout = null;
+
         const padding = 50;
         const gridWidth = archiveGrid.offsetWidth || window.innerWidth - 100;
-        // 스크롤 가능하도록 높이는 내용에 맞게 자동 조정
-        // 최소 높이만 설정하고, 내용이 많으면 자동으로 늘어나도록
         const minGridHeight = window.innerHeight - 200;
-        // 아이템 개수에 따라 필요한 최소 높이 계산 (충돌 방지를 위한 여유 공간 포함)
         const estimatedNeededHeight = Math.max(
           minGridHeight,
           Math.ceil(Math.sqrt(itemCount)) * (itemSize + padding * 2) + padding * 2
         );
         archiveGrid.style.minHeight = `${estimatedNeededHeight}px`;
         const gridHeight = Math.max(estimatedNeededHeight, archiveGrid.offsetHeight || minGridHeight);
-        
-        // 각 아이템에 랜덤 위치 적용 및 물리 시뮬레이션 데이터 초기화
+
         const archiveItems = archiveGrid.querySelectorAll('.archive-item');
         const items = []; // 물리 시뮬레이션용 아이템 배열
         
-        // 마지막으로 본 최신 timestamp 확인
         const lastViewedTimestamp = parseInt(localStorage.getItem(LAST_VIEWED_KEY) || '0');
         const currentLatestTimestamp = sortedData.length > 0 ? sortedData[0].timestamp : 0;
-        
-        // 새로운 아이템이 있는지 확인 (현재 최신 아이템이 마지막으로 본 것보다 최신인 경우)
         const hasNewItems = currentLatestTimestamp > lastViewedTimestamp;
+
+        // 최신 티켓 썸네일 표시
+        const latestTicketThumb = document.getElementById('latestTicketThumb');
+        if (latestTicketThumb) {
+          const clearThumb = (message = '이미지를 불러올 수 없습니다') => {
+            latestTicketThumb.innerHTML = `<div class="latest-ticket__placeholder">${message}</div>`;
+          };
+
+          if (sortedData.length > 0) {
+            const latestItem = sortedData[0];
+            latestTicketThumb.innerHTML = '';
+
+            const appendImage = (src, alt) => {
+              const img = document.createElement('img');
+              img.src = src;
+              img.alt = alt;
+              img.onerror = () => clearThumb();
+              latestTicketThumb.appendChild(img);
+            };
+
+            const appendComposite = (item) => {
+              const container = document.createElement('div');
+              container.className = 'latest-ticket__composite';
+              latestTicketThumb.appendChild(container);
+
+              const positions = item.imagePositions || [];
+              if (positions.length === 0) {
+                clearThumb();
+                return;
+              }
+              positions.forEach(pos => {
+                if (!pos || !pos.src) return;
+                const img = document.createElement('img');
+                img.className = 'latest-ticket__composite-img';
+                img.src = pos.src;
+                img.alt = pos.alt || '';
+
+                if (pos.relativeLeft !== undefined) {
+                  img.style.left = `${(pos.relativeLeft * 100).toFixed(2)}%`;
+                } else if (pos.left !== undefined) {
+                  img.style.left = `${parseFloat(pos.left)}%`;
+                } else {
+                  img.style.left = '50%';
+                  img.style.transform = 'translateX(-50%)';
+                }
+
+                if (pos.relativeTop !== undefined) {
+                  img.style.top = `${(pos.relativeTop * 100).toFixed(2)}%`;
+                } else if (pos.top !== undefined) {
+                  img.style.top = `${parseFloat(pos.top)}%`;
+                } else {
+                  img.style.top = '50%';
+                  img.style.transform = 'translate(-50%, -50%)';
+                }
+
+                if (pos.relativeWidth !== undefined) {
+                  img.style.width = `${(pos.relativeWidth * 100).toFixed(2)}%`;
+                } else if (pos.width !== undefined) {
+                  const widthVal = parseFloat(pos.width);
+                  img.style.width = isNaN(widthVal) ? '20%' : `${widthVal}%`;
+                } else {
+                  img.style.width = '25%';
+                }
+
+                if (pos.relativeHeight !== undefined) {
+                  img.style.height = `${(pos.relativeHeight * 100).toFixed(2)}%`;
+                } else if (pos.height !== undefined) {
+                  const heightVal = parseFloat(pos.height);
+                  img.style.height = isNaN(heightVal) ? 'auto' : `${heightVal}%`;
+                } else {
+                  img.style.height = 'auto';
+                }
+
+                if (pos.transform) {
+                  img.style.transform = pos.transform;
+                }
+
+                container.appendChild(img);
+              });
+            };
+
+            if (latestItem.rightCircleImage && typeof latestItem.rightCircleImage === 'string' && latestItem.rightCircleImage.length > 100) {
+              appendImage(latestItem.rightCircleImage, '최근 티켓 이미지');
+            } else if (Array.isArray(latestItem.imagePositions) && latestItem.imagePositions.length > 0) {
+              appendComposite(latestItem);
+            } else if (latestItem.image) {
+              appendImage(latestItem.image, '최근 티켓 이미지');
+            } else {
+              clearThumb();
+            }
+          } else {
+            clearThumb('아직 티켓이 없습니다');
+          }
+        }
         
         archiveItems.forEach((itemEl, index) => {
           const maxX = Math.max(0, gridWidth - itemSize - padding);
           const maxY = Math.max(0, gridHeight - itemSize - padding);
-          
+
           // 랜덤 위치 생성 (새로운 아이템은 위쪽에, 오래된 아이템은 아래쪽에)
           const itemTimestamp = sortedData[index]?.timestamp || Date.now();
           const age = Date.now() - itemTimestamp; // 아이템의 나이 (밀리초)
           const ageInSeconds = age / 1000; // 초 단위
-          
+          const itemAgeHours = ageInSeconds / 3600;
+
+          let timeBasedSizeRatio = 1.0;
+          if (itemAgeHours <= 2) {
+            timeBasedSizeRatio = 0.95 + (2 - itemAgeHours) / 2 * 0.05; // 2시간일 때 95%, 0시간일 때 100%
+          } else if (itemAgeHours <= 12) {
+            const progress = (itemAgeHours - 2) / 10; // 0 ~ 1
+            timeBasedSizeRatio = 0.95 - progress * 0.55; // 95% → 40%
+          } else {
+            timeBasedSizeRatio = 0.4;
+          }
+
+          const physicsItemSize = itemSize * timeBasedSizeRatio;
+          const physicsRadius = physicsItemSize / 2;
+
           // 새로운 아이템은 위쪽에, 오래된 아이템은 아래쪽에 배치
           const yBias = Math.min(ageInSeconds / 300, 0.7); // 5분 지나면 아래쪽으로 70% 이동
           const randomX = padding + Math.random() * maxX;
@@ -982,29 +1306,28 @@
           
           // 랜덤 회전 각도 (-30도 ~ +30도) - 더 큰 범위
           const randomRotate = (Math.random() - 0.5) * 60;
-          
+
           // 애니메이션 중 추가 회전 변동량 (-20도 ~ +20도)
           const rotateDelta = (Math.random() - 0.5) * 40;
-          
+
           // 랜덤 애니메이션 딜레이 (0~6초) - 더 긴 딜레이
           const animationDelay = Math.random() * 6;
-          
+
           // 랜덤 애니메이션 지속 시간 (6~12초) - 더 긴 지속 시간
           const animationDuration = 6 + Math.random() * 6;
-          
+
           // CSS 변수로 rotate 저장 (애니메이션에서 사용)
           itemEl.style.setProperty('--rotate', `${randomRotate}deg`);
           itemEl.style.setProperty('--rotate-delta', `${rotateDelta}deg`);
           itemEl.style.animationDelay = `${animationDelay}s`;
           itemEl.style.animationDuration = `${animationDuration}s`;
-          
+
           // 새로운 아이템은 하늘에서 떨어지도록 초기 위치 설정
           let initialX = randomX;
           let initialY = randomY;
           if (isNewItem) {
-            // 하늘에서 시작 (화면 위쪽, 약간의 랜덤 x 위치)
             initialX = padding + Math.random() * maxX;
-            initialY = -physicsItemSize - 50; // 화면 위쪽 밖에서 시작 (시간 기반 크기 사용)
+            initialY = -physicsItemSize - 50; // 화면 위쪽 밖에서 시작
           }
           
           // 초기 위치를 transform으로 설정 (left/top 대신)
@@ -1013,23 +1336,7 @@
           itemEl.style.top = '0';
           
           // 물리 시뮬레이션 데이터 초기화 (생성 시간 포함)
-          const birthTime = Date.now(); // 시뮬레이션 시작 시점
-          
-          // 시간 기반 크기 조정 계산 (물리 시뮬레이션용)
-          const itemAgeHours = ageInSeconds / 3600; // 시간 단위
-          let timeBasedSizeRatio = 1.0;
-          if (itemAgeHours <= 2) {
-            timeBasedSizeRatio = 0.95 + (2 - itemAgeHours) / 2 * 0.05; // 2시간일 때 95%, 0시간일 때 100%
-          } else if (itemAgeHours <= 12) {
-            const progress = (itemAgeHours - 2) / 10; // 0 ~ 1
-            timeBasedSizeRatio = 0.95 - progress * 0.55; // 95% → 40%
-          } else {
-            timeBasedSizeRatio = 0.4;
-          }
-          
-          // 물리 시뮬레이션용 크기 (시간에 따라 조정)
-          const physicsItemSize = itemSize * timeBasedSizeRatio;
-          const physicsRadius = physicsItemSize / 2;
+          const birthTime = Date.now();
           
           // 초기 활동성 계산 (나이에 따라)
           // 0~10분: 활발 (1.0), 10~30분: 점차 감소 (1.0 → 0.0), 30분 이후: 정지 (0.0)
@@ -1307,6 +1614,7 @@
     // 물리 시뮬레이션 (충돌 감지 및 튕김 효과)
     let animationFrameId = null;
     let physicsRunning = false;
+    let physicsInitTimeout = null;
     
     function startPhysicsSimulation(items, gridWidth, gridHeight, itemSize) {
       if (physicsRunning) return;
